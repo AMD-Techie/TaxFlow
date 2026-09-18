@@ -34,6 +34,7 @@ const ExceptionInboxPage = lazy(() => import('./pages/ExceptionInboxPage'));
 const RefundStatusDashboard = lazy(() => import('./pages/RefundStatusDashboard'));
 const RegulatoryIntelligencePage = lazy(() => import('./pages/RegulatoryIntelligencePage'));
 const GstRateCalculatorPage = lazy(() => import('./pages/GstRateCalculatorPage'));
+const ComplianceArchivePage = lazy(() => import('./pages/ComplianceArchivePage'));
 
 import InactivityTracker from './components/InactivityTracker';
 import { ShieldAlert, Loader2 } from 'lucide-react';
@@ -60,6 +61,7 @@ const routePermissions: Record<string, UserRole[]> = {
   '/computation': [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.FINANCE_MANAGER, UserRole.SUPER_ADMIN],
   '/transaction-compliance': [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.FINANCE_MANAGER, UserRole.SUPER_ADMIN],
   '/compliance': [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.FINANCE_MANAGER, UserRole.SUPER_ADMIN],
+  '/compliance-archive': [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.VIEWER, UserRole.FINANCE_MANAGER, UserRole.SUPER_ADMIN],
   '/filing': [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.FINANCE_MANAGER, UserRole.SUPER_ADMIN],
   '/approvals': [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.FINANCE_MANAGER, UserRole.SUPER_ADMIN],
   '/reports': [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.FINANCE_MANAGER, UserRole.SUPER_ADMIN],
@@ -211,6 +213,8 @@ const App: React.FC = () => {
         return <TransactionCompliancePage />;
       case '/compliance':
         return <Compliance />;
+      case '/compliance-archive':
+        return <ComplianceArchivePage />;
       case '/filing':
         return <Filing />;
       case '/approvals':

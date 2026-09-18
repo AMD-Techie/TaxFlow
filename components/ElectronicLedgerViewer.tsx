@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { 
   Wallet, Landmark, Plus, RefreshCw, AlertTriangle, ArrowRight,
-  TrendingUp, TrendingDown, Info, Save, FileText, CheckCircle2
+  TrendingUp, TrendingDown, Info, Save, FileText, CheckCircle2,
+  Archive, Download, ShieldCheck
 } from 'lucide-react';
+import { AutomatedLedgerExportModule } from './AutomatedLedgerExportModule';
 
 interface LedgerBalance {
   cgst: { tax: number; interest: number; penalty: number; fee: number; other: number; };
@@ -26,7 +28,7 @@ const initialCreditLedger: LedgerBalance = {
 };
 
 export const ElectronicLedgerViewer: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'CASH' | 'CREDIT' | 'LIABILITY' | 'ADJUST'>('CASH');
+  const [activeTab, setActiveTab] = useState<'CASH' | 'CREDIT' | 'LIABILITY' | 'ADJUST' | 'ARCHIVE'>('CASH');
   const [cashLedger, setCashLedger] = useState<LedgerBalance>(initialCashLedger);
   const [creditLedger, setCreditLedger] = useState<LedgerBalance>(initialCreditLedger);
 
@@ -136,6 +138,16 @@ export const ElectronicLedgerViewer: React.FC = () => {
           </p>
         </div>
         <div className="flex gap-2">
+          <button 
+            onClick={() => setActiveTab('ARCHIVE')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border transition-all ${
+              activeTab === 'ARCHIVE'
+                ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-200'
+                : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+            }`}
+          >
+            <Archive size={16} /> Monthly Compliance Archive
+          </button>
           <button className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl text-sm font-bold border border-indigo-100 hover:bg-indigo-100 transition-colors">
             <RefreshCw size={16} /> Sync with GSTN
           </button>
@@ -148,7 +160,8 @@ export const ElectronicLedgerViewer: React.FC = () => {
           { id: 'CASH', label: 'Electronic Cash Ledger' },
           { id: 'CREDIT', label: 'Electronic Credit Ledger' },
           { id: 'LIABILITY', label: 'Liability Register' },
-          { id: 'ADJUST', label: 'Post Adjustments (Interest/Penalty)' }
+          { id: 'ADJUST', label: 'Post Adjustments (Interest/Penalty)' },
+          { id: 'ARCHIVE', label: 'Compliance Archiving & Export' }
         ].map(tab => (
           <button
             key={tab.id}
@@ -293,6 +306,12 @@ export const ElectronicLedgerViewer: React.FC = () => {
                 ))}
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'ARCHIVE' && (
+          <div className="animate-in fade-in duration-200">
+            <AutomatedLedgerExportModule />
           </div>
         )}
       </div>

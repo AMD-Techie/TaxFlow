@@ -8,7 +8,7 @@ import {
   Building, CreditCard, Percent, ChevronLeft, ChevronRight, 
   ArrowUpDown, ArrowUp, ArrowDown, Upload, FileSpreadsheet,
   QrCode, Printer, Receipt, Tag, AlertCircle, ScanLine, Copy, Check, CheckCircle2, RefreshCw, Truck, ShieldAlert, MoreHorizontal, Search, Layers, Maximize2, AlertTriangle, ShieldCheck, Trash2, PlusCircle, Send, Bell, Camera, Clock,
-  RotateCw, ZoomIn, ZoomOut, Palette, Share2, ExternalLink, History, Zap, Sliders, Building2, Globe, Repeat, Database, Save, CloudOff
+  RotateCw, ZoomIn, ZoomOut, Palette, Share2, ExternalLink, History, Zap, Sliders, Building2, Globe, Repeat, Database, Save, CloudOff, MessageSquare
 } from 'lucide-react';
 import { Invoice, InvoiceItem, UserRole, InvoiceReminder, ExportConfig, ImportLog, InvoiceVersion } from '../types';
 import { exportToCSV } from '../utils/export';
@@ -33,6 +33,8 @@ import { useOfflineDrafts } from '../hooks/useOfflineDrafts';
 import InvoiceStatusDistributionCard from '../components/InvoiceStatusDistributionCard';
 import { AiExpenseCategorySuggester, STANDARD_EXPENSE_CATEGORIES } from '../components/AiExpenseCategorySuggester';
 import { ExpenseCategorySuggestion } from '../types';
+import { SendInvoiceWhatsAppModal } from '../components/SendInvoiceWhatsAppModal';
+import { WhatsAppNotificationCenter } from '../components/WhatsAppNotificationCenter';
 
 type InvoiceCategory = 'SALES' | 'PURCHASE' | 'CN_DN';
 
@@ -116,6 +118,7 @@ const Invoices: React.FC = () => {
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
+  const [whatsAppModalInvoice, setWhatsAppModalInvoice] = useState<Invoice | null>(null);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [isEvidenceTrailOpen, setIsEvidenceTrailOpen] = useState(false);
   const [isCurrencyConverterOpen, setIsCurrencyConverterOpen] = useState(false);
@@ -163,55 +166,152 @@ const Invoices: React.FC = () => {
     }
 
     if (createDirectly) {
-      try {
-        const newInv: any = {
-          tenantId,
-          gstin: extractedData.partyGstin || selectedGstin || '27AAAAA0000A1Z5',
-          branchId: selectedBranchId || 'b1',
-          category: extractedData.category || (activeCategory === 'CN_DN' ? 'SALES' : activeCategory),
-          docType: 'INVOICE',
-          invoiceNumber: extractedData.invoiceNumber || `INV-${Date.now().toString().slice(-6)}`,
-          date: extractedData.date || new Date().toISOString().split('T')[0],
-          partyName: extractedData.partyName || 'Scanned Vendor Entity',
-          partyGstin: extractedData.partyGstin || '27AABCU9632R1ZT',
-          placeOfSupply: extractedData.placeOfSupply || '27',
-          items: (extractedData.items || []).map((item, idx) => ({
-            id: (Date.now() + idx).toString(),
-            description: item.description || 'Scanned Line Item',
-            hsnSac: item.hsnSac || '998313',
-            quantity: item.quantity || 1,
-            unit: item.unit || 'PCS',
-            rate: item.rate || 0,
-            taxRate: item.gstRate || 18,
-            taxableValue: (item.quantity || 1) * (item.rate || 0),
-            taxAmount: (item.quantity || 1) * (item.rate || 0) * ((item.gstRate || 18) / 100)
-          })),
-          taxableValue: extractedData.taxableValue || 10000,
-          cgst: extractedData.cgst || 900,
-          sgst: extractedData.sgst || 900,
-          igst: extractedData.igst || 0,
-          totalGst: extractedData.totalGst || 1800,
-          totalAmount: extractedData.totalAmount || 11800,
-          status: 'APPROVED',
-          isRcm: false,
-          isBlockedItc: false,
-          isImport: false,
-          isSez: false,
-          vaultSynced: true,
-          documentVaultId: `DOC-VAULT-${Date.now().toString().slice(-6)}`
-        };
+      const draftPayload: any = {
+        tenantId,
+        gstin: extractedData.partyGstin || selectedGstin || '27AAAAA0000A1Z5',
+        branchId: selectedBranchId || 'b1',
+        category: extractedData.category || (activeCategory === 'CN_DN' ? 'SALES' : activeCategory),
+        docType: 'INVOICE',
+        invoiceNumber: extractedData.invoiceNumber || `INV-${Date.now().toString().slice(-6)}`,
+        date: extractedData.date || new Date().toISOString().split('T')[0],
+        partyName: extractedData.partyName || 'Scanned Vendor Entity',
+        partyGstin: extractedData.partyGstin || '27AABCU9632R1ZT',
+        placeOfSupply: extractedData.placeOfSupply || '27',
+        items: (extractedData.items || []).map((item, idx) => ({
+          id: (Date.now() + idx).toString(),
+          description: item.description || 'Scanned Line Item',
+          hsnSac: item.hsnSac || '998313',
+          quantity: item.quantity || 1,
+          unit: item.unit || 'PCS',
+          rate: item.rate || 0,
+          taxRate: item.gstRate || 18,
+          taxableValue: (item.quantity || 1) * (item.rate || 0),
+          taxAmount: (item.quantity || 1) * (item.rate || 0) * ((item.gstRate || 18) / 100)
+        })),
+        taxableValue: extractedData.taxableValue || 10000,
+        cgst: extractedData.cgst || 900,
+        sgst: extractedData.sgst || 900,
+        igst: extractedData.igst || 0,
+        totalGst: extractedData.totalGst || 1800,
+        totalAmount: extractedData.totalAmount || 11800,
+        status: 'APPROVED' as const,
+        isRcm: false,
+        isBlockedItc: false,
+        isImport: false,
+        isSez: false,
+        vaultSynced: true,
+        documentVaultId: `DOC-VAULT-${Date.now().toString().slice(-6)}`,
+        capturedImageDataUrl: extractedData.capturedImageDataUrl
+      };
 
-        await createInvoice(newInv);
+      if (!isOnline) {
+        // Automatically persist receipt in offline database queue
+        await saveDraft(`DRAFT-${Date.now()}`, draftPayload);
+        setScanSuccessToast(`Offline Mode: Scanned invoice #${draftPayload.invoiceNumber} stored in local queue. Ready to sync when online!`);
+        setTimeout(() => setScanSuccessToast(null), 6000);
+        return;
+      }
+
+      try {
+        await createInvoice(draftPayload);
         queryClient.invalidateQueries({ queryKey: ['invoices', tenantId] });
-        setScanSuccessToast(`Invoice #${newInv.invoiceNumber} processed & saved to Document Vault!`);
+        setScanSuccessToast(`Invoice #${draftPayload.invoiceNumber} processed & saved to Document Vault!`);
         setTimeout(() => setScanSuccessToast(null), 5000);
       } catch (err: any) {
-        console.error('Direct invoice creation error:', err);
-        setIsCreateModalOpen(true);
+        console.error('Direct invoice creation error, saving offline fallback:', err);
+        await saveDraft(`DRAFT-${Date.now()}`, draftPayload);
+        setScanSuccessToast(`Saved locally to Offline Drafts: #${draftPayload.invoiceNumber}`);
+        setTimeout(() => setScanSuccessToast(null), 5000);
       }
     } else {
       // Open Create Modal prefilled with camera scan data
       setIsCreateModalOpen(true);
+    }
+  };
+
+  const [isSyncingDrafts, setIsSyncingDrafts] = useState(false);
+
+  const handleSyncOfflineDraft = async (draft: any) => {
+    try {
+      const d = draft.data || {};
+      const payload: any = {
+        tenantId,
+        gstin: d.gstin || selectedGstin || '27AAAAA0000A1Z5',
+        branchId: d.branchId || selectedBranchId || 'b1',
+        category: d.category || (activeCategory === 'CN_DN' ? 'SALES' : activeCategory),
+        docType: d.docType || 'INVOICE',
+        invoiceNumber: d.invoiceNumber || `INV-${Date.now().toString().slice(-6)}`,
+        date: d.date || new Date().toISOString().split('T')[0],
+        partyName: d.partyName || 'Synced Entity',
+        partyGstin: d.gstin || d.partyGstin || '',
+        placeOfSupply: d.placeOfSupply || '27',
+        items: d.items || [],
+        taxableValue: d.taxableValue || d.amount || d.totalValue || 0,
+        cgst: d.cgst || 0,
+        sgst: d.sgst || 0,
+        igst: d.igst || 0,
+        totalGst: d.totalGst || 0,
+        totalAmount: d.totalAmount || d.totalValue || 0,
+        status: 'APPROVED',
+        isRcm: !!d.isRcm,
+        isBlockedItc: !!d.isBlockedItc,
+        vaultSynced: true
+      };
+
+      await createInvoice(payload);
+      await deleteDraft(draft.id);
+      queryClient.invalidateQueries({ queryKey: ['invoices', tenantId] });
+      setScanSuccessToast(`Draft #${payload.invoiceNumber} successfully synced to cloud!`);
+      setTimeout(() => setScanSuccessToast(null), 4000);
+    } catch (err: any) {
+      console.error('Failed to sync draft:', err);
+      alert('Failed to sync draft: ' + (err?.message || 'Server error'));
+    }
+  };
+
+  const handleSyncAllOfflineDrafts = async () => {
+    if (!offlineDrafts || offlineDrafts.length === 0) return;
+    setIsSyncingDrafts(true);
+    let successCount = 0;
+    try {
+      for (const draft of offlineDrafts) {
+        try {
+          const d = draft.data || {};
+          const payload: any = {
+            tenantId,
+            gstin: d.gstin || selectedGstin || '27AAAAA0000A1Z5',
+            branchId: d.branchId || selectedBranchId || 'b1',
+            category: d.category || (activeCategory === 'CN_DN' ? 'SALES' : activeCategory),
+            docType: d.docType || 'INVOICE',
+            invoiceNumber: d.invoiceNumber || `INV-${Date.now().toString().slice(-6)}`,
+            date: d.date || new Date().toISOString().split('T')[0],
+            partyName: d.partyName || 'Synced Entity',
+            partyGstin: d.gstin || d.partyGstin || '',
+            placeOfSupply: d.placeOfSupply || '27',
+            items: d.items || [],
+            taxableValue: d.taxableValue || d.amount || d.totalValue || 0,
+            cgst: d.cgst || 0,
+            sgst: d.sgst || 0,
+            igst: d.igst || 0,
+            totalGst: d.totalGst || 0,
+            totalAmount: d.totalAmount || d.totalValue || 0,
+            status: 'APPROVED',
+            isRcm: !!d.isRcm,
+            isBlockedItc: !!d.isBlockedItc,
+            vaultSynced: true
+          };
+          await createInvoice(payload);
+          await deleteDraft(draft.id);
+          successCount++;
+        } catch (e) {
+          console.error('Error syncing individual draft:', e);
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ['invoices', tenantId] });
+      setScanSuccessToast(`Successfully synced ${successCount} offline draft(s) to cloud!`);
+      setTimeout(() => setScanSuccessToast(null), 5000);
+    } finally {
+      setIsSyncingDrafts(false);
     }
   };
   
@@ -1519,61 +1619,7 @@ const Invoices: React.FC = () => {
       {/* Main Content */}
       {activeSubTab === 'REMINDERS' ? (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/60 border border-slate-100 overflow-hidden">
-                <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                    <div>
-                        <h3 className="text-lg font-bold text-slate-800">Automated Payment Reminders</h3>
-                        <p className="text-xs text-slate-500 mt-1">Manage scheduled alerts for overdue invoices and tax deadlines</p>
-                    </div>
-                    <div className="bg-purple-50 text-purple-700 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-2 border border-purple-100">
-                        <ShieldCheck size={14}/> Auto-Pilot Active
-                    </div>
-                </div>
-                <div className="p-0">
-                    <table className="w-full text-left">
-                        <thead className="bg-slate-50/50 border-b border-slate-100">
-                            <tr>
-                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Invoice</th>
-                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Recipient</th>
-                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Scheduled</th>
-                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Type</th>
-                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {isRemindersLoading ? (
-                                <tr>
-                                    <td colSpan={6} className="px-6 py-20 text-center">
-                                        <RefreshCw className="animate-spin mx-auto text-slate-400 mb-2"/>
-                                        <p className="text-slate-500 text-sm">Syncing with notification engine...</p>
-                                    </td>
-                                </tr>
-                            ) : reminders?.map((rem: InvoiceReminder) => (
-                                <tr key={rem.id} className="hover:bg-slate-50/50 transition-colors group">
-                                    <td className="px-6 py-4 font-semibold text-slate-800">{rem.invoiceNumber}</td>
-                                    <td className="px-6 py-4 text-sm text-slate-600">{rem.partyName}</td>
-                                    <td className="px-6 py-4 text-sm text-slate-600">{new Date(rem.scheduledDate).toLocaleDateString()}</td>
-                                    <td className="px-6 py-4">
-                                        <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-[10px] font-bold uppercase">{rem.type}</span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 w-fit ${
-                                            rem.status === 'SENT' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-                                        }`}>
-                                            <div className={`w-1 h-1 rounded-full ${rem.status === 'SENT' ? 'bg-green-500' : 'bg-amber-500'}`}></div>
-                                            {rem.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <button className="text-blue-600 hover:text-blue-700 font-bold text-xs">Reschedule</button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-              </div>
+              <WhatsAppNotificationCenter initialTab="INVOICES" tenantId={tenantId} />
           </div>
       ) : activeSubTab === 'IMPORT_HISTORY' ? (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -1651,46 +1697,92 @@ const Invoices: React.FC = () => {
           />
       ) : activeSubTab === 'OFFLINE_DRAFTS' ? (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mt-6 p-6 space-y-6">
-            <div className="flex items-center gap-2 mb-4 text-orange-700">
-               <Database size={24} />
-               <h3 className="text-lg font-bold">Local Offline Drafts</h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                 <div className="p-2.5 bg-orange-50 text-orange-600 rounded-xl border border-orange-200/60">
+                   <Database size={22} />
+                 </div>
+                 <div>
+                   <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                     Local Offline Drafts & Scanned Receipts
+                     <span className="text-xs px-2 py-0.5 bg-orange-100 text-orange-800 rounded-full font-bold">
+                       {offlineDrafts?.length || 0} queued
+                     </span>
+                   </h3>
+                   <p className="text-xs text-slate-500">
+                     IndexedDB local persistence for receipts scanned or drafted while disconnected
+                   </p>
+                 </div>
+              </div>
+
+              {offlineDrafts && offlineDrafts.length > 0 && (
+                <button
+                  onClick={handleSyncAllOfflineDrafts}
+                  disabled={!isOnline || isSyncingDrafts}
+                  className="px-4 py-2 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-md flex items-center gap-2 transition-all self-start sm:self-auto"
+                >
+                  {isSyncingDrafts ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                  Sync All Drafts ({offlineDrafts.length})
+                </button>
+              )}
             </div>
             
             {!isOnline && (
                <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex items-start gap-3">
                  <CloudOff size={18} className="text-amber-600 shrink-0 mt-0.5" />
                  <div>
-                   <h4 className="text-sm font-bold text-amber-800">You are currently offline</h4>
-                   <p className="text-xs text-amber-700 mt-1">Changes are saved locally. You can sync these drafts when your connection is restored.</p>
+                   <h4 className="text-sm font-bold text-amber-800">Device is Offline</h4>
+                   <p className="text-xs text-amber-700 mt-1">Receipts and drafts are safely preserved on your device storage. They will be available for automatic or manual cloud synchronization as soon as internet connection is restored.</p>
                  </div>
                </div>
             )}
             
             {(!offlineDrafts || offlineDrafts.length === 0) ? (
-              <div className="py-12 text-center text-slate-500">
-                <Database size={48} className="mx-auto mb-4 text-slate-300" />
-                <p>No local drafts found.</p>
+              <div className="py-16 text-center text-slate-500 space-y-3">
+                <div className="w-16 h-16 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center mx-auto text-slate-400">
+                  <Database size={32} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-700">No Local Offline Drafts</h4>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
+                    When you scan physical receipts or create draft invoices without an internet connection, they will be listed here.
+                  </p>
+                </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {offlineDrafts.map(draft => (
-                   <div key={draft.id} className="border border-slate-200 p-4 rounded-xl bg-slate-50 flex flex-col gap-3">
+                   <div key={draft.id} className="border border-slate-200 p-4 rounded-xl bg-slate-50/70 hover:bg-slate-50 transition-colors flex flex-col gap-3 shadow-xs">
                      <div className="flex items-start justify-between">
                        <div>
-                         <h4 className="font-bold text-slate-800 text-sm">{draft.data?.invoiceNumber || 'Untitled Draft'}</h4>
-                         <p className="text-xs text-slate-500 mt-0.5">Saved: {new Date(draft.updatedAt).toLocaleString()}</p>
+                         <h4 className="font-bold text-slate-800 text-sm font-mono">{draft.data?.invoiceNumber || 'Untitled Draft'}</h4>
+                         <p className="text-xs text-slate-500 mt-0.5">Saved: {new Date(draft.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {new Date(draft.updatedAt).toLocaleDateString()}</p>
                        </div>
-                       <span className="bg-orange-100 text-orange-700 text-[10px] font-bold px-2 py-1 rounded">LOCAL ONLY</span>
+                       <span className="bg-orange-100 text-orange-700 text-[10px] font-bold px-2 py-0.5 rounded border border-orange-200">LOCAL</span>
                      </div>
-                     <div className="text-xs text-slate-600 line-clamp-2">
-                       {draft.data?.partyName ? `Party: ${draft.data.partyName}` : 'No party selected'} <br/>
-                       Total: ₹{draft.data?.totalValue || 0}
+                     <div className="text-xs text-slate-600 space-y-1 bg-white p-3 rounded-lg border border-slate-200/80">
+                       <div className="font-semibold text-slate-800 truncate">{draft.data?.partyName || 'Party Not Specified'}</div>
+                       <div className="text-slate-500 flex justify-between">
+                         <span>GSTIN:</span>
+                         <span className="font-mono text-slate-700">{draft.data?.gstin || draft.data?.partyGstin || 'Unregistered'}</span>
+                       </div>
+                       <div className="text-slate-500 flex justify-between pt-1 border-t border-slate-100 font-bold text-slate-900">
+                         <span>Total Value:</span>
+                         <span>₹{Number(draft.data?.totalAmount || draft.data?.totalValue || 0).toLocaleString()}</span>
+                       </div>
                      </div>
-                     <div className="flex items-center justify-end gap-2 mt-auto pt-2">
-                        <button onClick={() => deleteDraft(draft.id)} className="text-xs font-semibold text-rose-600 hover:text-rose-700 px-3 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 transition-colors flex items-center gap-1">
+                     <div className="flex items-center justify-end gap-2 mt-auto pt-2 border-t border-slate-200/60">
+                        <button 
+                          onClick={() => deleteDraft(draft.id)} 
+                          className="text-xs font-semibold text-rose-600 hover:text-rose-700 px-3 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 transition-colors flex items-center gap-1"
+                        >
                           <Trash2 size={12} /> Discard
                         </button>
-                        <button onClick={() => alert("Sync functionality to be connected to draft editor. Draft Data: " + JSON.stringify(draft.data))} disabled={!isOnline} className="text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded-lg shadow-sm disabled:opacity-50 flex items-center gap-1 transition-colors">
+                        <button 
+                          onClick={() => handleSyncOfflineDraft(draft)} 
+                          disabled={!isOnline} 
+                          className="text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-3.5 py-1.5 rounded-lg shadow-sm disabled:opacity-50 flex items-center gap-1.5 transition-colors"
+                        >
                           <Upload size={12} /> Sync & File
                         </button>
                      </div>
@@ -2070,13 +2162,22 @@ const Invoices: React.FC = () => {
                                 <button className={`p-2 rounded-lg transition-colors ${inv.ewayBillError ? 'bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700' : 'hover:bg-purple-50 text-slate-400 hover:text-purple-600'}`} title={inv.ewayBillError || "Generate E-Way Bill"} onClick={(e) => { e.stopPropagation(); genEWayBill(inv.id); }} disabled={generatingEwbId === inv.id}> {generatingEwbId === inv.id ? <Loader2 size={16} className="animate-spin text-purple-600"/> : <Truck size={16} />} </button>
                             )}
                              {activeCategory === 'SALES' && (
-                               <button 
-                                 onClick={(e) => { e.stopPropagation(); handleSendReminder(inv.id, 'EMAIL'); }}
-                                 className="p-2 hover:bg-amber-50 rounded-lg text-slate-400 hover:text-amber-600 transition-colors group relative" 
-                                 title="Send Payment Reminder"
-                               > 
-                                 <Send size={16} /> 
-                               </button>
+                               <>
+                                 <button 
+                                   onClick={(e) => { e.stopPropagation(); setWhatsAppModalInvoice(inv); }}
+                                   className="p-2 hover:bg-emerald-50 rounded-lg text-slate-400 hover:text-emerald-600 transition-colors group relative" 
+                                   title="Send WhatsApp Notification"
+                                 > 
+                                   <MessageSquare size={16} /> 
+                                 </button>
+                                 <button 
+                                   onClick={(e) => { e.stopPropagation(); handleSendReminder(inv.id, 'EMAIL'); }}
+                                   className="p-2 hover:bg-amber-50 rounded-lg text-slate-400 hover:text-amber-600 transition-colors group relative" 
+                                   title="Send Payment Reminder (Email)"
+                                 > 
+                                   <Send size={16} /> 
+                                 </button>
+                               </>
                              )}
                              <button className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700" title="More Actions" onClick={(e) => { e.stopPropagation(); setSelectedInvoice(inv); }}><MoreHorizontal size={16}/></button>
                         </div>
@@ -2854,8 +2955,15 @@ const Invoices: React.FC = () => {
                             <History size={16}/> <span className="hidden sm:inline">History</span>
                         </button>
                         <button 
-                            onClick={() => setIsEvidenceTrailOpen(true)}
+                            onClick={() => setWhatsAppModalInvoice(selectedInvoice)}
                             className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-emerald-500/10"
+                            title="Send WhatsApp Invoice Notification"
+                        >
+                            <MessageSquare size={16} /> <span className="hidden sm:inline">WhatsApp Notify</span>
+                        </button>
+                        <button 
+                            onClick={() => setIsEvidenceTrailOpen(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-slate-800/10"
                         >
                             <ShieldCheck size={16}/> <span className="hidden sm:inline">Evidence Trail</span>
                         </button>
@@ -3441,6 +3549,19 @@ const Invoices: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* WhatsApp Invoice Notification Modal */}
+      {whatsAppModalInvoice && (
+        <SendInvoiceWhatsAppModal
+          invoice={whatsAppModalInvoice}
+          isOpen={Boolean(whatsAppModalInvoice)}
+          onClose={() => setWhatsAppModalInvoice(null)}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['invoices', tenantId] });
+            queryClient.invalidateQueries({ queryKey: ['auditLogs', tenantId] });
+          }}
+        />
       )}
     </div>
   );

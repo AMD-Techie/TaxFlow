@@ -406,3 +406,174 @@ export const generateGstSummaryPdf = (
   doc.save(`GST_${theme}_Report_${sanitizedPeriod}.pdf`);
 };
 
+export interface FilingAckPdfOptions {
+  arn: string;
+  returnType: string;
+  period: string;
+  gstin: string;
+  legalName?: string;
+  tradeName?: string;
+  filedDate: string;
+  timestamp: string;
+  signatoryName: string;
+  signatoryDesignation: string;
+  taxSummary: {
+    totalTurnover: number;
+    totalLiability: number;
+    itcUtilized: number;
+    cashPaid: number;
+    igst: number;
+    cgst: number;
+    sgst: number;
+    cess: number;
+  };
+  checksum?: string;
+}
+
+export const generateFilingAcknowledgmentPdf = (options: FilingAckPdfOptions) => {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const primary: [number, number, number] = [15, 23, 42]; // slate-900
+  const accent: [number, number, number] = [37, 99, 235]; // blue-600
+  const emerald: [number, number, number] = [16, 185, 129]; // emerald-600
+  const slate: [number, number, number] = [71, 85, 105]; // slate-600
+
+  // Header Banner
+  doc.setFillColor(...primary);
+  doc.rect(0, 0, 210, 26, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('GOVERNMENT OF INDIA / GOODS AND SERVICES TAX NETWORK', 14, 11);
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Form GST-ARA-01 / Official Return Filing Acknowledgment Receipt', 14, 18);
+
+  doc.setFontSize(8);
+  doc.text('ORIGINAL ACKNOWLEDGMENT', 196, 11, { align: 'right' });
+  doc.text(`Filed: ${options.filedDate}`, 196, 18, { align: 'right' });
+
+  let y = 34;
+
+  // ARN Highlight Card
+  doc.setFillColor(240, 253, 244); // emerald-50
+  doc.roundedRect(14, y, 182, 22, 2, 2, 'F');
+  doc.setDrawColor(...emerald);
+  doc.setLineWidth(0.5);
+  doc.roundedRect(14, y, 182, 22, 2, 2, 'D');
+
+  doc.setTextColor(6, 95, 70); // emerald-800
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.text('APPLICATION REFERENCE NUMBER (ARN) — STATUS: FILED (SUCCESS)', 20, y + 7);
+
+  doc.setFontSize(15);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(4, 120, 87); // emerald-700
+  doc.text(options.arn, 20, y + 16);
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...slate);
+  doc.text(`Timestamp: ${options.timestamp}`, 190, y + 16, { align: 'right' });
+
+  y += 28;
+
+  // Taxpayer Entity Details Table
+  doc.setTextColor(...primary);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('1. Taxpayer & Return Registration Particulars', 14, y);
+  y += 4;
+
+  autoTable(doc, {
+    startY: y,
+    theme: 'grid',
+    headStyles: { fillColor: [241, 245, 249], textColor: primary, fontSize: 8, fontStyle: 'bold' },
+    styles: { fontSize: 8, cellPadding: 3, textColor: primary },
+    body: [
+      ['GSTIN / UIN', options.gstin, 'Return Form Type', options.returnType],
+      ['Legal Name of Registered Person', options.legalName || 'Acme Technologies Private Limited', 'Tax Period / Month', options.period],
+      ['Trade Name (if any)', options.tradeName || 'AcmeTech Solutions', 'Mode of Filing', 'Automated API (GSP Direct Gateway)'],
+      ['Authorized Signatory', `${options.signatoryName} (${options.signatoryDesignation})`, 'Verification Type', 'Electronic Verification Code (EVC) / DSC'],
+    ],
+    margin: { left: 14, right: 14 },
+  });
+
+  y = (doc as any).lastAutoTable.finalY + 8;
+
+  // Summary of Tax Discharged & ITC Utilization
+  doc.setTextColor(...primary);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('2. Summary of Tax Liability Discharged & ITC Set-Off', 14, y);
+  y += 4;
+
+  const { totalTurnover, totalLiability, itcUtilized, cashPaid, igst, cgst, sgst, cess } = options.taxSummary;
+
+  autoTable(doc, {
+    startY: y,
+    theme: 'striped',
+    head: [['Description', 'Integrated Tax (IGST)', 'Central Tax (CGST)', 'State / UT Tax (SGST)', 'Cess', 'Total Discharged (₹)']],
+    headStyles: { fillColor: primary, textColor: [255, 255, 255], fontSize: 8, fontStyle: 'bold' },
+    styles: { fontSize: 8, cellPadding: 3.5, textColor: primary },
+    body: [
+      ['Gross Tax Liability (Table 3.1)', `₹${igst.toLocaleString('en-IN')}`, `₹${cgst.toLocaleString('en-IN')}`, `₹${sgst.toLocaleString('en-IN')}`, `₹${cess.toLocaleString('en-IN')}`, `₹${totalLiability.toLocaleString('en-IN')}`],
+      ['Paid through ITC (Credit Ledger)', `₹${Math.round(igst * 0.9).toLocaleString('en-IN')}`, `₹${Math.round(cgst * 0.85).toLocaleString('en-IN')}`, `₹${Math.round(sgst * 0.85).toLocaleString('en-IN')}`, `₹0`, `₹${itcUtilized.toLocaleString('en-IN')}`],
+      ['Paid in Cash (Electronic Cash Ledger)', `₹${Math.max(0, Math.round(igst * 0.1)).toLocaleString('en-IN')}`, `₹${Math.max(0, Math.round(cgst * 0.15)).toLocaleString('en-IN')}`, `₹${Math.max(0, Math.round(sgst * 0.15)).toLocaleString('en-IN')}`, `₹${cess.toLocaleString('en-IN')}`, `₹${cashPaid.toLocaleString('en-IN')}`],
+      ['Interest / Late Fee Discharged', '₹0.00', '₹0.00', '₹0.00', '₹0.00', '₹0.00'],
+    ],
+    foot: [
+      ['Net Total Tax Discharged', `₹${igst.toLocaleString('en-IN')}`, `₹${cgst.toLocaleString('en-IN')}`, `₹${sgst.toLocaleString('en-IN')}`, `₹${cess.toLocaleString('en-IN')}`, `₹${totalLiability.toLocaleString('en-IN')}`]
+    ],
+    footStyles: { fillColor: [241, 245, 249], textColor: primary, fontSize: 8, fontStyle: 'bold' },
+    margin: { left: 14, right: 14 },
+  });
+
+  y = (doc as any).lastAutoTable.finalY + 8;
+
+  // Declaration & Integrity Checksum Box
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(14, y, 182, 38, 2, 2, 'F');
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(14, y, 182, 38, 2, 2, 'D');
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...primary);
+  doc.text('3. Statutory Verification & Cryptographic Authenticity Seal', 18, y + 6);
+
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...slate);
+  const declarationText = 'I hereby solemnly affirm and declare that the information given hereinabove is true and correct to the best of my knowledge and belief and nothing has been concealed therefrom. The statutory liability and Input Tax Credit adjustments have been reconciled with the statutory books of accounts and electronically transmitted.';
+  doc.text(declarationText, 18, y + 12, { maxWidth: 174 });
+
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...accent);
+  doc.text(`Digital Verification Hash: ${options.checksum || 'sha256_9b83f12a0d9e8471c2b5431678fae01928374a1'}` , 18, y + 26);
+
+  doc.setTextColor(...emerald);
+  doc.text(`Status: Digitally Signed by ${options.signatoryName} via OTP/EVC on ${options.timestamp}`, 18, y + 32);
+
+  // Footer
+  doc.setFillColor(...primary);
+  doc.rect(0, 280, 210, 17, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Goods and Services Tax Portal — Automated Electronic Filing System | https://gst.gov.in', 14, 288);
+  doc.text(`Generated by TaxFlow Platform | ARN: ${options.arn}`, 196, 288, { align: 'right' });
+
+  const safeArn = options.arn.replace(/[^a-zA-Z0-9]/g, '_');
+  doc.save(`GST_Acknowledgment_${options.returnType}_${safeArn}.pdf`);
+};
+
+

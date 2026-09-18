@@ -23,6 +23,7 @@ import { CurrencyConverterModule } from '../components/CurrencyConverterModule';
 import { MultiTierTaxEngineModule } from '../components/MultiTierTaxEngineModule';
 
 import { ElectronicLedgerViewer } from '../components/ElectronicLedgerViewer';
+import { AutomatedGstFilingWizard } from '../components/AutomatedGstFilingWizard';
 
 const Computation: React.FC = () => {
   const user = useSelector((state: RootState) => state.auth.user);
@@ -31,6 +32,7 @@ const Computation: React.FC = () => {
   const tenantId = user?.currentTenantId || 't1';
   const [activeTab, setActiveTab] = useState<'STATUTORY_ENGINE' | 'LIABILITY' | 'ESTIMATOR' | 'SIMULATOR' | 'MAPPING' | 'AI_RISK' | 'TOOLS'>('STATUTORY_ENGINE');
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
+  const [isFilingWizardOpen, setIsFilingWizardOpen] = useState(false);
   const [period] = useState('July 2026');
 
   const { data: taxData, isLoading: isTaxLoading, refetch } = useQuery({ 
@@ -106,8 +108,15 @@ const Computation: React.FC = () => {
         </div>
         <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-lg overflow-x-auto gap-2">
            <button 
+             onClick={() => setIsFilingWizardOpen(true)}
+             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-bold rounded-md hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md active:scale-95 no-print"
+             title="Launch Official Automated GST Filing Wizard"
+           >
+             <Sparkles size={16}/> Automated GST Filing
+           </button>
+           <button 
              onClick={() => setIsSummaryModalOpen(true)}
-             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-md hover:bg-blue-700 transition-all shadow-md active:scale-95 no-print"
+             className="flex items-center gap-2 px-4 py-2 bg-white text-slate-700 border border-slate-300 text-sm font-bold rounded-md hover:bg-slate-50 transition-all shadow-sm active:scale-95 no-print"
            >
              <FileBarChart size={16}/> Tax Summary
            </button>
@@ -662,6 +671,24 @@ const Computation: React.FC = () => {
                      </div>
                 )}
            </div>
+      )}
+
+      {/* Automated GST Filing Wizard Modal */}
+      {isFilingWizardOpen && (
+        <AutomatedGstFilingWizard 
+          isOpen={isFilingWizardOpen}
+          onClose={() => setIsFilingWizardOpen(false)}
+          taxComputation={taxData}
+          invoices={invoices}
+          tenantId={tenantId}
+          user={user}
+          currentTenant={user?.availableTenants.find(t => t.id === tenantId)}
+          initialPeriod={period}
+          initialGstin={selectedGstin !== 'ALL' ? selectedGstin : undefined}
+          onFilingSuccess={() => {
+            refetch();
+          }}
+        />
       )}
     </div>
   );

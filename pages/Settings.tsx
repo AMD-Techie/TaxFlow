@@ -11,6 +11,8 @@ import GstAuthenticationModule from '../components/GstAuthenticationModule';
 import InactivityPolicyConfigurator from '../components/InactivityPolicyConfigurator';
 import WorkspaceSyncSettingsTab from '../components/WorkspaceSyncSettingsTab';
 import { DocumentStylingConfig } from '../components/DocumentStylingConfig';
+import { WhatsAppNotificationCenter } from '../components/WhatsAppNotificationCenter';
+import { AutomatedLedgerExportModule } from '../components/AutomatedLedgerExportModule';
 
 const Toast: React.FC<{ message: string; onClose: () => void }> = ({ message, onClose }) => {
   useEffect(() => {
@@ -412,6 +414,11 @@ const StorageSettings: React.FC<{ tenantId: string; setToast: (msg: string) => v
                         </div>
                     </div>
                 </div>
+            </div>
+
+            {/* Automated Monthly Ledger Compliance Export Section */}
+            <div className="border-t border-slate-200 pt-8">
+                <AutomatedLedgerExportModule tenantId={tenantId} />
             </div>
         </div>
     );
@@ -1216,7 +1223,10 @@ const Settings: React.FC = () => {
           )}
 
           {activeTab === 'WHATSAPP' && (
-             <WhatsAppSettingsTab setToast={(msg) => setToastMessage(msg)} />
+             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+               <WhatsAppNotificationCenter initialTab="SETTINGS" tenantId={currentTenant?.id || 't1'} />
+               <WhatsAppSettingsTab setToast={(msg) => setToastMessage(msg)} />
+             </div>
           )}
 
         </div>

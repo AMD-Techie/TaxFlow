@@ -932,4 +932,116 @@ export type {
   ItcRefundClaim
 } from './services/refundService';
 
+// =========================================================================
+// WHATSAPP NOTIFICATION & AUTOMATED GST REMINDERS TYPES
+// =========================================================================
+
+export type WhatsAppTemplateType = 
+  | 'GST_DUE_DATE_REMINDER'
+  | 'DEADLINE_ALERT'
+  | 'FILING_REMINDER'
+  | 'RETURN_FILED_SUCCESS'
+  | 'GST_RETURN_FILED'
+  | 'INVOICE_STATUS_NOTIFICATION'
+  | 'PAYMENT_REMINDER'
+  | 'PAYMENT_OVERDUE'
+  | 'PAYMENT_RECEIVED'
+  | 'INVOICE_ISSUED'
+  | 'E_INVOICE_GENERATED'
+  | 'REFUND_STATUS'
+  | 'CUSTOM';
+
+export interface WhatsAppMessageLog {
+  id: string;
+  recipientPhone: string;
+  recipientName?: string;
+  recipientGstin?: string;
+  template: WhatsAppTemplateType;
+  messageBody: string;
+  status: 'SENT' | 'DELIVERED' | 'FAILED' | 'QUEUED';
+  timestamp: string;
+  messageSid?: string;
+  entityId?: string; // invoiceId or returnFormType
+  entityType?: 'INVOICE' | 'GST_RETURN' | 'REFUND' | 'GENERAL';
+  isAutomated?: boolean;
+  error?: string;
+  simulated?: boolean;
+  metadata?: Record<string, any>;
+}
+
+export interface GstDueDateItem {
+  id: string;
+  returnType: 'GSTR-1' | 'GSTR-3B' | 'CMP-08' | 'GSTR-9' | 'GSTR-9C' | 'IFF' | 'GSTR-4' | 'GSTR-7' | 'GSTR-8';
+  period: string; // e.g. "August 2026"
+  dueDate: string; // e.g. "2026-09-20"
+  description: string;
+  taxpayerCategory: 'REGULAR' | 'COMPOSITION' | 'QRMP' | 'TDS_DEDUCTOR' | 'ECOMMERCE';
+  frequency: 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY';
+  status?: 'PENDING' | 'FILED' | 'OVERDUE' | 'UPCOMING';
+  estimatedLiability?: number;
+  daysRemaining: number;
+  isUrgent: boolean;
+  applicableClientsCount?: number;
+}
+
+export interface WhatsAppAutoReminderConfig {
+  enabled: boolean;
+  gstDueDateReminders: {
+    enabled: boolean;
+    daysBefore: number[]; // e.g. [7, 3, 1]
+    targetReturns: string[]; // e.g. ['GSTR-1', 'GSTR-3B', 'CMP-08', 'GSTR-9']
+    sendTime: string; // e.g. "09:00"
+    includeLateFeeWarning: boolean;
+  };
+  invoiceStatusNotifications: {
+    enabled: boolean;
+    notifyOnIssued: boolean;
+    notifyOnPaymentDue: boolean;
+    notifyOnOverdue: boolean;
+    notifyOnPaymentReceived: boolean;
+    overdueDaysInterval: number;
+    includeUpiPaymentLink: boolean;
+  };
+  defaultCountryCode: string;
+  defaultFallbackNumber?: string;
+}
+
+export interface SendWhatsAppNotificationParams {
+  to: string;
+  template: WhatsAppTemplateType;
+  data: Record<string, any>;
+  recipientName?: string;
+  recipientGstin?: string;
+  entityId?: string;
+  entityType?: 'INVOICE' | 'GST_RETURN' | 'REFUND' | 'GENERAL';
+  isAutomated?: boolean;
+}
+
+export interface SendWhatsAppResponse {
+  success: boolean;
+  messageId?: string;
+  status: 'SENT' | 'DELIVERED' | 'FAILED' | 'QUEUED';
+  messageBody?: string;
+  simulated?: boolean;
+  error?: string;
+  timestamp?: string;
+}
+
+export interface AutomatedGstRemindersSummary {
+  totalProcessed: number;
+  sentCount: number;
+  skippedCount: number;
+  failedCount: number;
+  reminders: Array<{
+    clientName: string;
+    phone: string;
+    returnType: string;
+    dueDate: string;
+    period: string;
+    status: string;
+    messageId?: string;
+  }>;
+}
+
+
 

@@ -37,7 +37,8 @@ import { Languages,
   TrendingUp,
   Landmark,
   BookOpen,
-  Percent
+  Percent,
+  Archive
 } from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, logout, switchTenant, setSelectedGstin, setSelectedBranch } from '../store/store';
@@ -178,6 +179,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPath, onNavigate }) =>
     { label: t('nav.einvoice'), icon: QrCode, path: '/einvoice', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.FINANCE_MANAGER, UserRole.VIEWER] },
     { label: t('nav.ewaybill'), icon: Truck, path: '/ewaybill', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.FINANCE_MANAGER, UserRole.VIEWER] },
     { label: t('nav.compliance'), icon: Bell, path: '/compliance', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.FINANCE_MANAGER, UserRole.VIEWER] },
+    { label: 'Compliance Archive', icon: Archive, path: '/compliance-archive', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.FINANCE_MANAGER, UserRole.VIEWER] },
     { label: t('nav.tx_compliance'), icon: ShieldCheck, path: '/transaction-compliance', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.FINANCE_MANAGER, UserRole.VIEWER] },
     { label: t('nav.rate_calculator'), icon: Percent, path: '/rate-calculator', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.FINANCE_MANAGER, UserRole.VIEWER] },
     { label: t('nav.computation'), icon: Calculator, path: '/computation', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.FINANCE_MANAGER] },

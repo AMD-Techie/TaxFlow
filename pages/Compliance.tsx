@@ -21,12 +21,16 @@ import { ItcLedgerOptimizer } from '../components/ItcLedgerOptimizer';
 import { RegulatoryEventAudit } from '../components/RegulatoryEventAudit';
 import { RegulatoryAuditLog } from '../components/RegulatoryAuditLog';
 import { VendorComplianceScorecard } from '../components/VendorComplianceScorecard';
+import { WhatsAppNotificationCenter } from '../components/WhatsAppNotificationCenter';
+import { ComplianceArchiveTimelineView } from '../components/ComplianceArchiveTimelineView';
 
 const Compliance: React.FC = () => {
   const user = useSelector((state: RootState) => state.auth.user);
   const tenantId = user?.currentTenantId || 't1';
+  const tenant = user?.availableTenants?.find(t => t.id === tenantId);
+  const tenantName = tenant?.name || 'TaxFlow Enterprise Ltd.';
 
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'ARCHITECTURE' | 'GSTIN_SEARCH' | 'VENDOR_RISK' | 'ITC_WATCHLIST' | 'REGULATORY_CHANGES' | 'REGULATORY_AUDIT' | 'REGULATORY_AUDIT_LOG' | 'NOTIFICATIONS'>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'COMPLIANCE_ARCHIVE' | 'WHATSAPP_REMINDERS' | 'ARCHITECTURE' | 'GSTIN_SEARCH' | 'VENDOR_RISK' | 'ITC_WATCHLIST' | 'REGULATORY_CHANGES' | 'REGULATORY_AUDIT' | 'REGULATORY_AUDIT_LOG' | 'NOTIFICATIONS'>('OVERVIEW');
   const [emailEnabled, setEmailEnabled] = useState(true);
   const [whatsappEnabled, setWhatsappEnabled] = useState(true);
   const [desktopEnabled, setDesktopEnabled] = useState(true);
@@ -168,17 +172,33 @@ const Compliance: React.FC = () => {
           <p className="text-slate-500">Monitor due dates, vendor risks, and manage automated alerts.</p>
         </div>
         <div className="flex bg-slate-100 p-1 rounded-lg overflow-x-auto">
-           {['OVERVIEW', 'ARCHITECTURE', 'GSTIN_SEARCH', 'VENDOR_RISK', 'ITC_WATCHLIST', 'REGULATORY_CHANGES', 'REGULATORY_AUDIT', 'REGULATORY_AUDIT_LOG', 'NOTIFICATIONS'].map(tab => (
+           {['OVERVIEW', 'COMPLIANCE_ARCHIVE', 'WHATSAPP_REMINDERS', 'ARCHITECTURE', 'GSTIN_SEARCH', 'VENDOR_RISK', 'ITC_WATCHLIST', 'REGULATORY_CHANGES', 'REGULATORY_AUDIT', 'REGULATORY_AUDIT_LOG', 'NOTIFICATIONS'].map(tab => (
               <button 
                 key={tab}
                 onClick={() => setActiveTab(tab as any)}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-all whitespace-nowrap ${activeTab === tab ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all whitespace-nowrap ${activeTab === tab ? 'bg-white shadow text-blue-600 font-bold' : 'text-slate-500 hover:text-slate-700'}`}
               >
-                {tab === 'GSTIN_SEARCH' ? 'GSTIN Verification' : tab === 'REGULATORY_CHANGES' ? 'Regulatory Changes' : tab === 'REGULATORY_AUDIT' ? 'Regulatory Event Audit' : tab === 'REGULATORY_AUDIT_LOG' ? 'Decision Audit Log' : tab === 'ARCHITECTURE' ? 'Control Tower Architecture' : tab === 'ITC_WATCHLIST' ? 'ITC Control Ledger' : tab.replace('_', ' ')}
+                {tab === 'COMPLIANCE_ARCHIVE' ? '🗄️ Compliance Archive' : tab === 'WHATSAPP_REMINDERS' ? '💬 WhatsApp GST Reminders' : tab === 'GSTIN_SEARCH' ? 'GSTIN Verification' : tab === 'REGULATORY_CHANGES' ? 'Regulatory Changes' : tab === 'REGULATORY_AUDIT' ? 'Regulatory Event Audit' : tab === 'REGULATORY_AUDIT_LOG' ? 'Decision Audit Log' : tab === 'ARCHITECTURE' ? 'Control Tower Architecture' : tab === 'ITC_WATCHLIST' ? 'ITC Control Ledger' : tab.replace('_', ' ')}
               </button>
            ))}
         </div>
       </div>
+
+      {activeTab === 'COMPLIANCE_ARCHIVE' && (
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <ComplianceArchiveTimelineView
+            tenantId={tenantId}
+            tenantName={tenantName}
+            onNavigateToSettings={() => setActiveTab('NOTIFICATIONS')}
+          />
+        </div>
+      )}
+
+      {activeTab === 'WHATSAPP_REMINDERS' && (
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <WhatsAppNotificationCenter initialTab="GST_DUE_DATES" tenantId={tenantId} />
+        </div>
+      )}
 
       {activeTab === 'GSTIN_SEARCH' && (
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">

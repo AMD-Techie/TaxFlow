@@ -26,6 +26,7 @@ import { OtherReturnsWizard } from '../components/OtherReturnsWizard';
 import { Gstr9Wizard } from '../components/Gstr9Wizard';
 import { GstSandboxEnvironment } from '../components/GstSandboxEnvironment';
 import { Gstr1TaxRateChart } from '../components/Gstr1TaxRateChart';
+import { AutomatedGstFilingWizard } from '../components/AutomatedGstFilingWizard';
 import { 
   requestBrowserNotificationPermission, 
   triggerBrowserNotification, 
@@ -45,6 +46,8 @@ const Filing: React.FC = () => {
   // State
   const [activeTab, setActiveTab] = useState<'MONTHLY' | 'ANNUAL' | 'APPROVALS' | 'CALENDAR' | 'SANDBOX'>('MONTHLY');
   const [selectedReturn, setSelectedReturn] = useState<FilingRecord | null>(null);
+  const [isAutomatedWizardOpen, setIsAutomatedWizardOpen] = useState(false);
+  const [wizardPeriod, setWizardPeriod] = useState('July 2026');
   
   // Wizard State
   const [wizardStep, setWizardStep] = useState(0);
@@ -292,10 +295,18 @@ const Filing: React.FC = () => {
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
                       <button 
+                          onClick={() => setIsAutomatedWizardOpen(true)}
+                          className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-sm font-bold rounded-lg shadow-md transition-all flex items-center gap-2 active:scale-95"
+                          title="Launch Official Automated GST Return Filing Flow"
+                      >
+                          <FileCheck size={16} /> Automated GST Filing Wizard
+                      </button>
+
+                      <button 
                           onClick={() => {
                               setIsInitiating(!isInitiating);
                           }}
-                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg shadow-sm transition-all flex items-center gap-1.5"
+                          className="px-4 py-2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 text-sm font-bold rounded-lg shadow-sm transition-all flex items-center gap-1.5"
                       >
                           <PlusCircle size={16} /> Prepare New Return
                       </button>
@@ -1260,6 +1271,21 @@ const Filing: React.FC = () => {
                 onClose={handleCloseWizard} 
                 tenantId={tenantId} 
                 user={user}
+                onFilingSuccess={() => {
+                    queryClient.invalidateQueries({ queryKey: ['filings', tenantId] });
+                }}
+            />
+        )}
+
+        {/* Automated GST Return Filing Wizard */}
+        {isAutomatedWizardOpen && (
+            <AutomatedGstFilingWizard 
+                isOpen={isAutomatedWizardOpen}
+                onClose={() => setIsAutomatedWizardOpen(false)}
+                tenantId={tenantId}
+                user={user}
+                currentTenant={user?.availableTenants.find(t => t.id === tenantId)}
+                initialPeriod={wizardPeriod}
                 onFilingSuccess={() => {
                     queryClient.invalidateQueries({ queryKey: ['filings', tenantId] });
                 }}

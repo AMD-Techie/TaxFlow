@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { RegionalComplianceHeatmap } from '../components/RegionalComplianceHeatmap';
+import { ArchitectureRefinementView } from '../components/ArchitectureRefinementView';
+import { EnterpriseFrontendUxDesignPortal } from '../components/EnterpriseFrontendUxDesignPortal';
 import { 
   executeArchitecturePipeline, 
   fetchArchitectureNodesStatus, 
@@ -22,7 +24,7 @@ import {
 } from '../services/architectureApi';
 
 export const ControlTowerPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'MULTI_GSTIN' | 'HEATMAP' | 'MAP' | 'SIMULATOR' | 'EVENT_BUS' | 'LEDGER' | 'STORAGE'>('HEATMAP');
+  const [activeTab, setActiveTab] = useState<'UX_DESIGN' | 'BLUEPRINT' | 'MULTI_GSTIN' | 'HEATMAP' | 'MAP' | 'SIMULATOR' | 'EVENT_BUS' | 'LEDGER' | 'STORAGE'>('UX_DESIGN');
   const [selectedNode, setSelectedNode] = useState<string | null>('NESTJS_BFF');
   const [isSimulating, setIsSimulating] = useState(false);
   const [simulatedResult, setSimulatedResult] = useState<any>(null);
@@ -45,21 +47,21 @@ export const ControlTowerPage: React.FC = () => {
   const loadData = async () => {
     try {
       const [nodes, eventsData, ledger, persistence, portalPayload] = await Promise.all([
-        fetchArchitectureNodesStatus(),
-        fetchEventBusHistory(20),
-        fetchComplianceLedger(15),
-        fetchPersistenceHealth(),
-        fetchPortalIntegrationHealth()
+        fetchArchitectureNodesStatus().catch(() => []),
+        fetchEventBusHistory(20).catch(() => ({ history: [], metrics: {} })),
+        fetchComplianceLedger(15).catch(() => []),
+        fetchPersistenceHealth().catch(() => null),
+        fetchPortalIntegrationHealth().catch(() => ({ portals: [], logs: [] }))
       ]);
-      setNodesStatus(nodes);
-      setEventHistory(eventsData.history || []);
-      setEventMetrics(eventsData.metrics || {});
-      setComplianceLedger(ledger || []);
-      setPersistenceHealth(persistence);
-      setPortalsHealth(portalPayload?.portals || []);
-      setPortalSyncLogs(portalPayload?.logs || []);
+      if (nodes && nodes.length > 0) setNodesStatus(nodes);
+      if (eventsData?.history) setEventHistory(eventsData.history);
+      if (eventsData?.metrics) setEventMetrics(eventsData.metrics);
+      if (ledger) setComplianceLedger(ledger);
+      if (persistence) setPersistenceHealth(persistence);
+      if (portalPayload?.portals) setPortalsHealth(portalPayload.portals);
+      if (portalPayload?.logs) setPortalSyncLogs(portalPayload.logs);
     } catch (e) {
-      console.error('Failed to load architecture telemetry:', e);
+      // Gracefully silent fallback - telemetry is resilient and non-blocking
     }
   };
 
@@ -246,6 +248,22 @@ export const ControlTowerPage: React.FC = () => {
       {/* Navigation Tabs */}
       <div className="flex bg-slate-800/60 p-1.5 rounded-xl border border-slate-700/80 w-fit flex-wrap gap-1">
         <button
+          onClick={() => setActiveTab('UX_DESIGN')}
+          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+            activeTab === 'UX_DESIGN' ? 'bg-indigo-600 text-white shadow-md' : 'text-indigo-300 bg-indigo-950/40 border border-indigo-500/30 hover:bg-indigo-900/60'
+          }`}
+        >
+          <Sparkles size={14} className="text-amber-400" /> Phase 2: Enterprise Frontend UX Design
+        </button>
+        <button
+          onClick={() => setActiveTab('BLUEPRINT')}
+          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+            activeTab === 'BLUEPRINT' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:text-white'
+          }`}
+        >
+          <ShieldCheck size={14} className="text-emerald-400" /> Target Architecture Blueprint & Audit
+        </button>
+        <button
           onClick={() => setActiveTab('HEATMAP')}
           className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
             activeTab === 'HEATMAP' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
@@ -302,6 +320,16 @@ export const ControlTowerPage: React.FC = () => {
           <HardDrive size={14} /> Multi-Store Persistence
         </button>
       </div>
+
+      {/* TAB: PHASE 2 ENTERPRISE FRONTEND UX DESIGN */}
+      {activeTab === 'UX_DESIGN' && (
+        <EnterpriseFrontendUxDesignPortal />
+      )}
+
+      {/* TAB: TARGET ARCHITECTURE BLUEPRINT & AUDIT */}
+      {activeTab === 'BLUEPRINT' && (
+        <ArchitectureRefinementView />
+      )}
 
       {/* TAB: REGIONAL COMPLIANCE HEATMAP */}
       {activeTab === 'HEATMAP' && (
