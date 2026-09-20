@@ -3,7 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TaxFlow - Enterprise GST & Tax Compliance Platform</title>
+    <title>TaxFlow - GST Compliance SaaS</title>
+    <meta name="description" content="A comprehensive multi-tenant GST compliance dashboard featuring invoice management, reconciliation, return filing wizards, statutory GST rate calculator, and analytics." />
+    <meta property="og:title" content="TaxFlow - GST Compliance SaaS" />
+    <meta property="og:description" content="A comprehensive multi-tenant GST compliance dashboard featuring invoice management, reconciliation, return filing wizards, statutory GST rate calculator, and analytics." />
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -166,10 +169,12 @@
         }
 
         body {
-          background: white !important;
-          color: black !important;
+          background: #ffffff !important;
+          color: #0f172a !important;
           margin: 0 !important;
           padding: 0 !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
         }
 
         #root {
@@ -178,7 +183,10 @@
           padding: 0 !important;
         }
 
-        .print-container {
+        .print-container,
+        #printable-invoices-register,
+        #printable-invoice-document {
+          display: block !important;
           width: 100% !important;
           max-width: 100% !important;
           margin: 0 !important;
@@ -189,7 +197,6 @@
 
         .card, .bg-white {
           box-shadow: none !important;
-          border: 1px solid #e2e8f0 !important;
         }
 
         table {
@@ -197,7 +204,7 @@
           border-collapse: collapse !important;
         }
         th, td {
-          border: 1px solid #e2e8f0 !important;
+          border: 1px solid #cbd5e1 !important;
         }
       }
     </style>

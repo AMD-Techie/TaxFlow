@@ -4,19 +4,19 @@ import { RootState } from '../store/store';
 import { UserRole } from '../types';
 import { 
   ShieldCheck, ShieldAlert, CheckCircle2, AlertCircle, Clock, 
-  FileText, ArrowRight, UserCheck, ChevronRight, Plus, Filter, 
-  Search, RefreshCw, Send, Lock, Sparkles, Check, X, AlertTriangle, 
-  Layers, Download, Key, Shield, Sliders, MessageSquare, ExternalLink,
-  Info, Eye, FileSpreadsheet, Building2, Calendar, FileCheck
+  FileText, Plus, Search, Lock, Sparkles, Check, X,
+  Sliders, MessageSquare, ExternalLink, Users, Eye, Key, Shield
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ApprovalRequest, ApprovalStatus, ApprovalRequestType, PriorityLevel,
   loadApprovalRequests, saveApprovalRequests, createApprovalRequest, 
   updateApprovalStatus, loadPolicyConfig, savePolicyConfig, 
-  DEFAULT_APPROVAL_POLICY, resetApprovalDataToSeed 
+  loadDelegations, ROLE_APPROVAL_PERMISSIONS, resetApprovalDataToSeed 
 } from '../services/approvalWorkflowService';
 import { BottleneckAnalyticsView } from './BottleneckAnalyticsView';
+import { ApprovalRbacMatrixTab } from './approval/ApprovalRbacMatrixTab';
+import { ApprovalRequestInspector } from './approval/ApprovalRequestInspector';
 
 interface HierarchicalApprovalModuleProps {
   onGoToFilingPortal?: (gstin: string, returnType: string) => void;
@@ -27,13 +27,13 @@ export const HierarchicalApprovalModule: React.FC<HierarchicalApprovalModuleProp
 }) => {
   const currentUser = useSelector((state: RootState) => state.auth.user);
   
-  // Simulated Role Override for testing both Accountant & Finance Manager views
+  // Role Perspective Switcher
   const [activeRolePerspective, setActiveRolePerspective] = useState<UserRole>(
     currentUser?.role || UserRole.FINANCE_MANAGER
   );
 
   // Active Tab State
-  const [activeTab, setActiveTab] = useState<'INBOX' | 'CREATE_REQUEST' | 'ALL_REQUESTS' | 'POLICY_MATRIX'>('INBOX');
+  const [activeTab, setActiveTab] = useState<'INBOX' | 'CREATE_REQUEST' | 'ALL_REQUESTS' | 'RBAC_MATRIX' | 'POLICY_MATRIX' | 'BOTTLENECK_ANALYTICS'>('INBOX');
 
   // Approval Requests List
   const [requests, setRequests] = useState<ApprovalRequest[]>([]);
@@ -43,6 +43,9 @@ export const HierarchicalApprovalModule: React.FC<HierarchicalApprovalModuleProp
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [typeFilter, setTypeFilter] = useState<string>('ALL');
+
+  // Delegations State
+  const [delegations, setDelegations] = useState(loadDelegations());
 
   // Toast Notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -78,14 +81,25 @@ export const HierarchicalApprovalModule: React.FC<HierarchicalApprovalModuleProp
   const [newCess, setNewCess] = useState<number>(10000);
   const [newDocName, setNewDocName] = useState('GSTR3B_June_Reconciliation_Working.xlsx');
 
-  // Load data on mount
+  // Load data on mount and sync with active authenticated role
   useEffect(() => {
     refreshRequests();
   }, []);
 
+  useEffect(() => {
+    if (currentUser?.role) {
+      setActiveRolePerspective(currentUser.role);
+    }
+  }, [currentUser?.role]);
+
   const refreshRequests = () => {
     const list = loadApprovalRequests();
     setRequests(list);
+    setDelegations(loadDelegations());
+    if (selectedRequest) {
+      const refreshedSel = list.find(r => r.id === selectedRequest.id);
+      if (refreshedSel) setSelectedRequest(refreshedSel);
+    }
   };
 
   const showToast = (msg: string) => {
@@ -93,7 +107,7 @@ export const HierarchicalApprovalModule: React.FC<HierarchicalApprovalModuleProp
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Filter requests based on tab and filters
+  // Filter requests based on tab, RBAC role, and search filters
   const filteredRequests = requests.filter(req => {
     const matchesSearch = 
       req.requestNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -105,16 +119,22 @@ export const HierarchicalApprovalModule: React.FC<HierarchicalApprovalModuleProp
     const matchesType = typeFilter === 'ALL' || req.requestType === typeFilter;
 
     if (activeTab === 'INBOX') {
-      // Perspective matching
+      // Perspective matching based on RBAC role
       if (activeRolePerspective === UserRole.ACCOUNTANT) {
-        // Accountant sees their own requests that need revision or are draft
-        return matchesSearch && matchesStatus && matchesType && (req.status === 'REVISION_REQUESTED' || req.status === 'DRAFT');
+        // Accountant sees items needing their revision or drafts
+        return matchesSearch && matchesStatus && matchesType && (req.status === 'REVISION_REQUESTED' || req.status === 'DRAFT' || req.submittedBy.email === (currentUser?.email || 'rohan.accountant@taxflow.in'));
       } else if (activeRolePerspective === UserRole.FINANCE_MANAGER) {
         // Finance manager sees items pending FM review
         return matchesSearch && matchesStatus && matchesType && req.status === 'PENDING_FINANCE_MANAGER';
+      } else if (activeRolePerspective === UserRole.ADMIN || activeRolePerspective === UserRole.SUPER_ADMIN) {
+        // Tax Head / Admin sees items pending Tax Head review or all actionable pending items
+        return matchesSearch && matchesStatus && matchesType && (req.status === 'PENDING_TAX_HEAD' || req.status === 'PENDING_FINANCE_MANAGER' || req.status === 'APPROVED');
+      } else if (activeRolePerspective === UserRole.AUDITOR) {
+        // Auditor sees all items requiring compliance assurance
+        return matchesSearch && matchesStatus && matchesType;
       } else {
-        // Admin / Tax Head sees items pending Tax Head review or escalated
-        return matchesSearch && matchesStatus && matchesType && (req.status === 'PENDING_TAX_HEAD' || req.status === 'PENDING_FINANCE_MANAGER');
+        // Viewer sees overview
+        return matchesSearch && matchesStatus && matchesType;
       }
     }
 
@@ -129,6 +149,9 @@ export const HierarchicalApprovalModule: React.FC<HierarchicalApprovalModuleProp
   const totalValuePending = requests
     .filter(r => r.status.startsWith('PENDING'))
     .reduce((acc, r) => acc + r.taxAmount.totalTax, 0);
+
+  // Active Role Capability
+  const activeRolePerm = ROLE_APPROVAL_PERMISSIONS[activeRolePerspective] || ROLE_APPROVAL_PERMISSIONS[UserRole.VIEWER];
 
   // Handle Form Submit for New Request
   const handleCreateNewRequest = (e: React.FormEvent) => {
@@ -167,8 +190,8 @@ export const HierarchicalApprovalModule: React.FC<HierarchicalApprovalModuleProp
         ]
       },
       {
-        name: currentUser?.name || 'Accountant User',
-        email: currentUser?.email || 'accountant@taxflow.in',
+        name: currentUser?.name || (activeRolePerspective === UserRole.ACCOUNTANT ? 'Rohan Sharma' : 'Active User'),
+        email: currentUser?.email || (activeRolePerspective === UserRole.ACCOUNTANT ? 'rohan.accountant@taxflow.in' : 'user@taxflow.in'),
         role: activeRolePerspective
       }
     );
@@ -185,7 +208,6 @@ export const HierarchicalApprovalModule: React.FC<HierarchicalApprovalModuleProp
     req: ApprovalRequest
   ) => {
     if (type === 'DISPATCH_TO_GSTN' && policyConfig.enforceEvcOtpSignoff) {
-      // Require EVC OTP modal
       setPendingActionReq(req);
       setEvcOtpInput('');
       setEvcError('');
@@ -311,89 +333,125 @@ GENERATED DATE  : ${new Date().toISOString()}
         )}
       </AnimatePresence>
 
-      {/* HEADER BANNER WITH PERSPECTIVE ROLE SWITCHER */}
-      <div className="p-6 bg-slate-900 text-white rounded-3xl border border-slate-800 shadow-xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
+      {/* HEADER BANNER WITH RBAC ROLE SWITCHER */}
+      <div className="p-6 bg-white text-slate-900 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-50/70 rounded-full blur-3xl pointer-events-none" />
 
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
           <div className="flex items-start gap-4">
-            <div className="p-3.5 bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 rounded-2xl flex items-center justify-center shrink-0">
+            <div className="p-3.5 bg-blue-50 border border-blue-200 text-blue-600 rounded-2xl flex items-center justify-center shrink-0">
               <ShieldCheck size={32} />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-2xl font-black text-white tracking-tight">Hierarchical Approval Workflow</h2>
-                <span className="px-2.5 py-0.5 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[10px] font-mono font-bold rounded-full uppercase">
-                  Four-Eyes Governance
+                <h2 className="text-2xl font-black text-slate-900 tracking-tight">Hierarchical Approval Workflow</h2>
+                <span className="px-2.5 py-0.5 bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-mono font-bold rounded-full uppercase">
+                  RBAC &amp; Four-Eyes Governance
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
-                Multi-stage review pipeline for Accountants, Finance Managers, and Tax Heads. Validates return filings and ITC adjustments before final lock and GSTN portal dispatch.
+              <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                Role-based approval pipelines for Preparers (Accountants), L1 Reviewers (Finance Managers), L2 Authorities (Tax Heads), and Independent Auditors.
               </p>
             </div>
           </div>
 
-          {/* ROLE PERSPECTIVE SWITCHER */}
-          <div className="bg-slate-800/90 p-3.5 rounded-2xl border border-slate-700 space-y-2">
-            <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center justify-between">
-              <span>Simulated Reviewer Role</span>
-              <span className="text-indigo-400 font-mono">Active Workspace</span>
+          {/* RBAC ROLE PERSPECTIVE SWITCHER */}
+          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2">
+            <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center justify-between">
+              <span>RBAC Perspective Role</span>
+              <span className="text-blue-600 font-mono font-bold">Live Simulation</span>
             </label>
-            <div className="flex items-center gap-1.5 bg-slate-900/80 p-1 rounded-xl border border-slate-700">
+            <div className="flex flex-wrap items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-xs">
               <button
                 type="button"
                 onClick={() => setActiveRolePerspective(UserRole.ACCOUNTANT)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                   activeRolePerspective === UserRole.ACCOUNTANT 
                     ? 'bg-blue-600 text-white shadow-xs' 
-                    : 'text-slate-400 hover:text-white'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 }`}
               >
-                Accountant (Preparer)
+                Accountant
               </button>
               <button
                 type="button"
                 onClick={() => setActiveRolePerspective(UserRole.FINANCE_MANAGER)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                   activeRolePerspective === UserRole.FINANCE_MANAGER 
                     ? 'bg-indigo-600 text-white shadow-xs' 
-                    : 'text-slate-400 hover:text-white'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 }`}
               >
-                Finance Manager (Reviewer)
+                Finance Mgr (L1)
               </button>
               <button
                 type="button"
                 onClick={() => setActiveRolePerspective(UserRole.ADMIN)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                   activeRolePerspective === UserRole.ADMIN || activeRolePerspective === UserRole.SUPER_ADMIN
                     ? 'bg-purple-600 text-white shadow-xs' 
-                    : 'text-slate-400 hover:text-white'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 }`}
               >
-                Tax Head / Partner
+                Tax Head (L2)
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveRolePerspective(UserRole.AUDITOR)}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  activeRolePerspective === UserRole.AUDITOR 
+                    ? 'bg-teal-600 text-white shadow-xs' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                Auditor
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveRolePerspective(UserRole.VIEWER)}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  activeRolePerspective === UserRole.VIEWER 
+                    ? 'bg-slate-800 text-white shadow-xs' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                Viewer
               </button>
             </div>
           </div>
         </div>
 
+        {/* ACTIVE ROLE PERMISSION BADGE */}
+        <div className="mt-4 pt-3.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-2 text-slate-600 flex-wrap">
+            <span className="font-extrabold text-slate-900">Active Authority:</span>
+            <span className="text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md font-mono font-bold border border-blue-200">{activeRolePerm.roleLabel}</span>
+            <span className="text-slate-300">&bull;</span>
+            <span className="text-slate-500">{activeRolePerm.description}</span>
+          </div>
+
+          <span className="text-[11px] font-mono text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 font-bold">
+            Sign-off Limit: {activeRolePerm.maxSingleSignoffAmount === 0 ? (activeRolePerm.canApproveL2 ? 'Unlimited' : '₹0') : `₹${activeRolePerm.maxSingleSignoffAmount.toLocaleString('en-IN')}`}
+          </span>
+        </div>
+
         {/* METRICS ROW */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-4 border-t border-slate-800">
-          <div className="p-3 bg-slate-800/50 rounded-2xl border border-slate-700/60">
-            <p className="text-[10px] text-slate-400 font-bold uppercase">Pending FM Reviews</p>
-            <p className="text-xl font-black text-amber-400 font-mono mt-0.5">{pendingFmCount}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-slate-100">
+          <div className="p-3.5 bg-slate-50 hover:bg-white rounded-2xl border border-slate-200 shadow-xs transition-all">
+            <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider">Pending FM (L1)</p>
+            <p className="text-2xl font-black text-amber-600 font-mono mt-0.5">{pendingFmCount}</p>
           </div>
-          <div className="p-3 bg-slate-800/50 rounded-2xl border border-slate-700/60">
-            <p className="text-[10px] text-slate-400 font-bold uppercase">Escalated to Tax Head</p>
-            <p className="text-xl font-black text-purple-400 font-mono mt-0.5">{pendingTaxHeadCount}</p>
+          <div className="p-3.5 bg-slate-50 hover:bg-white rounded-2xl border border-slate-200 shadow-xs transition-all">
+            <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider">Escalated Tax Head (L2)</p>
+            <p className="text-2xl font-black text-purple-600 font-mono mt-0.5">{pendingTaxHeadCount}</p>
           </div>
-          <div className="p-3 bg-slate-800/50 rounded-2xl border border-slate-700/60">
-            <p className="text-[10px] text-slate-400 font-bold uppercase">Approved &amp; Portal Ready</p>
-            <p className="text-xl font-black text-emerald-400 font-mono mt-0.5">{approvedReadyCount}</p>
+          <div className="p-3.5 bg-slate-50 hover:bg-white rounded-2xl border border-slate-200 shadow-xs transition-all">
+            <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider">Approved &amp; Ready</p>
+            <p className="text-2xl font-black text-emerald-600 font-mono mt-0.5">{approvedReadyCount}</p>
           </div>
-          <div className="p-3 bg-slate-800/50 rounded-2xl border border-slate-700/60">
-            <p className="text-[10px] text-slate-400 font-bold uppercase">Tax Liability Under Review</p>
-            <p className="text-xl font-black text-blue-400 font-mono mt-0.5">₹{totalValuePending.toLocaleString('en-IN')}</p>
+          <div className="p-3.5 bg-slate-50 hover:bg-white rounded-2xl border border-slate-200 shadow-xs transition-all">
+            <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider">Tax Liability in Pipeline</p>
+            <p className="text-2xl font-black text-blue-600 font-mono mt-0.5">₹{totalValuePending.toLocaleString('en-IN')}</p>
           </div>
         </div>
 
@@ -404,11 +462,11 @@ GENERATED DATE  : ${new Date().toISOString()}
             onClick={() => setActiveTab('INBOX')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
               activeTab === 'INBOX'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 border border-slate-200/60'
             }`}
           >
-            <Clock size={15} /> Action Inbox ({filteredRequests.length})
+            <Clock size={15} /> Action Queue ({filteredRequests.length})
           </button>
 
           <button
@@ -419,8 +477,8 @@ GENERATED DATE  : ${new Date().toISOString()}
             }}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
               activeTab === 'CREATE_REQUEST'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 border border-slate-200/60'
             }`}
           >
             <Plus size={15} /> Submit New Approval
@@ -431,11 +489,23 @@ GENERATED DATE  : ${new Date().toISOString()}
             onClick={() => setActiveTab('ALL_REQUESTS')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
               activeTab === 'ALL_REQUESTS'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 border border-slate-200/60'
             }`}
           >
-            <FileText size={15} /> Audit History ({requests.length})
+            <FileText size={15} /> Full Audit History ({requests.length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('RBAC_MATRIX')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'RBAC_MATRIX'
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 border border-slate-200/60'
+            }`}
+          >
+            <ShieldCheck size={15} /> RBAC &amp; Delegation Matrix
           </button>
 
           <button
@@ -443,23 +513,23 @@ GENERATED DATE  : ${new Date().toISOString()}
             onClick={() => setActiveTab('POLICY_MATRIX')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
               activeTab === 'POLICY_MATRIX'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 border border-slate-200/60'
             }`}
           >
-            <Sliders size={15} /> Approval Threshold Rules
+            <Sliders size={15} /> Threshold Policies
           </button>
 
           <button
             type="button"
-            onClick={() => setActiveTab('BOTTLENECK_ANALYTICS' as any)}
+            onClick={() => setActiveTab('BOTTLENECK_ANALYTICS')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-              activeTab === ('BOTTLENECK_ANALYTICS' as any)
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              activeTab === 'BOTTLENECK_ANALYTICS'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 border border-slate-200/60'
             }`}
           >
-            <Clock size={15} /> Bottleneck Analytics
+            <Clock size={15} /> SLA Analytics
           </button>
         </div>
       </div>
@@ -488,8 +558,8 @@ GENERATED DATE  : ${new Date().toISOString()}
                 className="px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-700"
               >
                 <option value="ALL">All Statuses</option>
-                <option value="PENDING_FINANCE_MANAGER">Pending Finance Mgr</option>
-                <option value="PENDING_TAX_HEAD">Pending Tax Head</option>
+                <option value="PENDING_FINANCE_MANAGER">Pending Finance Mgr (L1)</option>
+                <option value="PENDING_TAX_HEAD">Pending Tax Head (L2)</option>
                 <option value="REVISION_REQUESTED">Revision Requested</option>
                 <option value="APPROVED">Approved</option>
                 <option value="SUBMITTED_TO_GSTN">Submitted to GSTN</option>
@@ -514,12 +584,16 @@ GENERATED DATE  : ${new Date().toISOString()}
               {filteredRequests.length === 0 ? (
                 <div className="p-12 text-center bg-white rounded-3xl border border-slate-200">
                   <CheckCircle2 size={40} className="mx-auto text-emerald-500 mb-3" />
-                  <p className="text-sm font-extrabold text-slate-800">No Pending Approvals</p>
-                  <p className="text-xs text-slate-500 mt-1">All items in this perspective queue are cleared.</p>
+                  <p className="text-sm font-extrabold text-slate-800">Queue is Clear</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    No pending approval requests matching your current RBAC filter perspective.
+                  </p>
                 </div>
               ) : (
                 filteredRequests.map((req) => {
                   const isSelected = selectedRequest?.id === req.id;
+                  const isOverThreshold = req.taxAmount.totalTax > policyConfig.singleStageLimit;
+
                   return (
                     <div
                       key={req.id}
@@ -540,8 +614,13 @@ GENERATED DATE  : ${new Date().toISOString()}
                               req.priority === 'URGENT_DUE_SOON' ? 'bg-rose-100 text-rose-800 border border-rose-300' :
                               req.priority === 'HIGH' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'
                             }`}>
-                              {req.priority.replace('_', ' ')}
+                              {req.priority.replace(/_/g, ' ')}
                             </span>
+                            {isOverThreshold && (
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                                L2 Dual Sign-Off
+                              </span>
+                            )}
                           </div>
                           <h4 className="text-sm font-extrabold text-slate-900 mt-2">{req.title}</h4>
                           <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
@@ -590,151 +669,23 @@ GENERATED DATE  : ${new Date().toISOString()}
           {/* RIGHT 5 COLS: DETAILED REVIEW INSPECTOR PANEL */}
           <div className="lg:col-span-5">
             {selectedRequest ? (
-              <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-md space-y-6 sticky top-6">
-                {/* Header */}
-                <div className="flex items-start justify-between border-b border-slate-200 pb-4">
-                  <div>
-                    <span className="font-mono text-xs font-black text-blue-700 bg-blue-100 px-2.5 py-0.5 rounded-md">
-                      {selectedRequest.requestNumber}
-                    </span>
-                    <h3 className="text-base font-black text-slate-900 mt-2">{selectedRequest.title}</h3>
-                    <p className="text-xs text-slate-500 mt-1">Submitted by {selectedRequest.submittedBy.name} ({selectedRequest.submittedBy.role})</p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => handleDownloadApprovalCertificate(selectedRequest)}
-                    className="p-2 text-slate-500 hover:text-slate-900 bg-slate-100 rounded-xl transition-colors shrink-0"
-                    title="Download Audit Certificate"
-                  >
-                    <Download size={18} />
-                  </button>
-                </div>
-
-                {/* TAX BREAKDOWN CARD */}
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Financial Liability Breakdown</span>
-                    <span className="text-xs font-mono font-extrabold text-blue-700">FY {selectedRequest.financialYear}</span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                    <div className="p-2 bg-white rounded-xl border border-slate-200">
-                      <p className="text-[10px] text-slate-400 uppercase font-sans font-bold">CGST Amount</p>
-                      <p className="font-extrabold text-slate-900 mt-0.5">₹{selectedRequest.taxAmount.cgst.toLocaleString('en-IN')}</p>
-                    </div>
-                    <div className="p-2 bg-white rounded-xl border border-slate-200">
-                      <p className="text-[10px] text-slate-400 uppercase font-sans font-bold">SGST Amount</p>
-                      <p className="font-extrabold text-slate-900 mt-0.5">₹{selectedRequest.taxAmount.sgst.toLocaleString('en-IN')}</p>
-                    </div>
-                    <div className="p-2 bg-white rounded-xl border border-slate-200">
-                      <p className="text-[10px] text-slate-400 uppercase font-sans font-bold">IGST Amount</p>
-                      <p className="font-extrabold text-slate-900 mt-0.5">₹{selectedRequest.taxAmount.igst.toLocaleString('en-IN')}</p>
-                    </div>
-                    <div className="p-2 bg-white rounded-xl border border-slate-200">
-                      <p className="text-[10px] text-slate-400 uppercase font-sans font-bold">Cess Amount</p>
-                      <p className="font-extrabold text-slate-900 mt-0.5">₹{selectedRequest.taxAmount.cess.toLocaleString('en-IN')}</p>
-                    </div>
-                  </div>
-
-                  <div className="p-3 bg-blue-600 text-white rounded-xl flex items-center justify-between font-mono">
-                    <span className="text-xs font-bold uppercase font-sans">Total Tax Liability</span>
-                    <span className="text-base font-black">₹{selectedRequest.taxAmount.totalTax.toLocaleString('en-IN')}</span>
-                  </div>
-                </div>
-
-                {/* AUTOMATED RISK & ANOMALY CHECKS */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                      <ShieldAlert size={15} className="text-indigo-600" /> Pre-Filing Risk &amp; Compliance Checks
-                    </span>
-                    <span className="text-xs font-mono font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                      Score: {selectedRequest.riskScore}/100
-                    </span>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    {selectedRequest.riskChecks.map(check => (
-                      <div key={check.id} className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs flex items-start gap-2">
-                        <CheckCircle2 size={16} className={check.status === 'PASS' ? 'text-emerald-600 shrink-0 mt-0.5' : 'text-amber-600 shrink-0 mt-0.5'} />
-                        <div>
-                          <p className="font-bold text-slate-800">{check.label}</p>
-                          <p className="text-[11px] text-slate-500 mt-0.5">{check.details}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* WORKFLOW COMMENT TRAIL */}
-                <div className="space-y-3">
-                  <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                    <MessageSquare size={15} className="text-blue-600" /> Sequential Audit Trail
-                  </h4>
-
-                  <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
-                    {(selectedRequest?.comments || []).map(c => (
-                      <div key={c.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="font-extrabold text-slate-900">{c.authorName} ({c.authorRole})</span>
-                          <span className="text-slate-400 font-mono">{new Date(c.timestamp).toLocaleDateString()}</span>
-                        </div>
-                        <p className="text-slate-700 text-xs">{c.text}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* REVIEWER ACTION BUTTONS */}
-                <div className="pt-4 border-t border-slate-200 space-y-2">
-                  <p className="text-[11px] font-bold text-slate-500 uppercase">Available Reviewer Actions</p>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    {selectedRequest.status.startsWith('PENDING') && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => openActionModal('APPROVE', selectedRequest)}
-                          className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-extrabold text-xs transition-all shadow-md flex items-center justify-center gap-1.5"
-                        >
-                          <Check size={16} /> Approve Request
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => openActionModal('REQUEST_REVISION', selectedRequest)}
-                          className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-extrabold text-xs transition-all shadow-md flex items-center justify-center gap-1.5"
-                        >
-                          <RefreshCw size={16} /> Request Revision
-                        </button>
-                      </>
-                    )}
-
-                    {selectedRequest.status === 'APPROVED' && (
-                      <button
-                        type="button"
-                        onClick={() => openActionModal('DISPATCH_TO_GSTN', selectedRequest)}
-                        className="col-span-2 px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-xs transition-all shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2"
-                      >
-                        <Lock size={16} /> EVC / DSC Sign &amp; Dispatch to GSTN Portal
-                      </button>
-                    )}
-
-                    {selectedRequest.status === 'SUBMITTED_TO_GSTN' && (
-                      <div className="col-span-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 font-bold flex items-center gap-2">
-                        <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
-                        <span>Submitted to GST Portal with ARN {selectedRequest.portalSubmissionArn}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
+              <ApprovalRequestInspector
+                request={selectedRequest}
+                activeRolePerspective={activeRolePerspective}
+                currentUserEmail={currentUser?.email || (activeRolePerspective === UserRole.ACCOUNTANT ? 'rohan.accountant@taxflow.in' : 'reviewer@taxflow.in')}
+                currentUserName={currentUser?.name || 'TaxFlow User'}
+                policyConfig={policyConfig}
+                delegations={delegations}
+                onOpenActionModal={openActionModal}
+                onDownloadCertificate={handleDownloadApprovalCertificate}
+                onShowToast={showToast}
+                onRefreshRequests={refreshRequests}
+              />
             ) : (
               <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center text-slate-400">
                 <FileText size={48} className="mx-auto mb-3 opacity-50" />
                 <p className="text-sm font-bold text-slate-700">Select an Approval Request</p>
-                <p className="text-xs mt-1">Click any item on the left to inspect detailed tax breakdowns and perform review actions.</p>
+                <p className="text-xs mt-1">Click any item on the left to inspect detailed tax breakdowns, RBAC authorization assessment, and audit trail.</p>
               </div>
             )}
           </div>
@@ -749,7 +700,7 @@ GENERATED DATE  : ${new Date().toISOString()}
               <Plus size={22} className="text-blue-600" /> Submit New Return or Reconciliation Approval
             </h3>
             <p className="text-xs text-slate-500 mt-1">
-              Accountants can draft and submit tax returns or ITC adjustments for Finance Manager review before final GSTN portal dispatch.
+              Accountants and Finance Managers can submit drafted tax returns for hierarchical Four-Eyes review.
             </p>
           </div>
 
@@ -879,11 +830,19 @@ GENERATED DATE  : ${new Date().toISOString()}
                 type="submit"
                 className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-sm rounded-2xl transition-all shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2"
               >
-                <Send size={18} /> Submit for Finance Manager Review
+                <Plus size={18} /> Submit for Hierarchical Review
               </button>
             </div>
           </form>
         </div>
+      )}
+
+      {/* TAB: RBAC MATRIX & GOVERNANCE */}
+      {activeTab === 'RBAC_MATRIX' && (
+        <ApprovalRbacMatrixTab
+          activeRolePerspective={activeRolePerspective}
+          onShowToast={showToast}
+        />
       )}
 
       {/* TAB: POLICY MATRIX & THRESHOLDS */}
@@ -893,7 +852,9 @@ GENERATED DATE  : ${new Date().toISOString()}
             <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
               <Sliders size={22} className="text-indigo-600" /> Approval Threshold &amp; Four-Eyes Settings
             </h3>
-            <p className="text-xs text-slate-500 mt-1">Configure threshold limits for single-stage vs two-stage escalation rules.</p>
+            <p className="text-xs text-slate-500 mt-1">
+              Configure threshold limits for single-stage vs two-stage escalation rules. (Restricted to Admin / Super Admin)
+            </p>
           </div>
 
           <div className="space-y-4 text-xs font-bold text-slate-700">
@@ -902,9 +863,10 @@ GENERATED DATE  : ${new Date().toISOString()}
               <p className="text-[11px] text-slate-500">Items below this amount require only 1 Finance Manager signoff. Items exceeding this amount are automatically escalated to Tax Head / Partner.</p>
               <input
                 type="number"
+                disabled={activeRolePerspective !== UserRole.ADMIN && activeRolePerspective !== UserRole.SUPER_ADMIN}
                 value={policyConfig.singleStageLimit}
                 onChange={(e) => setPolicyConfig({ ...policyConfig, singleStageLimit: Number(e.target.value) })}
-                className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl font-mono text-slate-900"
+                className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl font-mono text-slate-900 disabled:bg-slate-100 disabled:text-slate-500"
               />
             </div>
 
@@ -915,6 +877,7 @@ GENERATED DATE  : ${new Date().toISOString()}
               </div>
               <input
                 type="checkbox"
+                disabled={activeRolePerspective !== UserRole.ADMIN && activeRolePerspective !== UserRole.SUPER_ADMIN}
                 checked={policyConfig.requireTwoStageApproval}
                 onChange={(e) => setPolicyConfig({ ...policyConfig, requireTwoStageApproval: e.target.checked })}
                 className="w-5 h-5 accent-blue-600"
@@ -928,26 +891,29 @@ GENERATED DATE  : ${new Date().toISOString()}
               </div>
               <input
                 type="checkbox"
+                disabled={activeRolePerspective !== UserRole.ADMIN && activeRolePerspective !== UserRole.SUPER_ADMIN}
                 checked={policyConfig.enforceEvcOtpSignoff}
                 onChange={(e) => setPolicyConfig({ ...policyConfig, enforceEvcOtpSignoff: e.target.checked })}
                 className="w-5 h-5 accent-blue-600"
               />
             </div>
 
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={handleSavePolicy}
-                className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs rounded-xl shadow-md transition-all"
-              >
-                Save Governance Policies
-              </button>
-            </div>
+            {(activeRolePerspective === UserRole.ADMIN || activeRolePerspective === UserRole.SUPER_ADMIN) && (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={handleSavePolicy}
+                  className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs rounded-xl shadow-md transition-all"
+                >
+                  Save Governance Policies
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {activeTab === ('BOTTLENECK_ANALYTICS' as any) && (
+      {activeTab === 'BOTTLENECK_ANALYTICS' && (
         <BottleneckAnalyticsView requests={requests} onShowToast={showToast} />
       )}
 

@@ -389,10 +389,12 @@ export const InactivityPolicyConfigurator: React.FC<InactivityPolicyConfigurator
             <div className="flex items-center justify-between pt-2">
               <button
                 type="button"
-                onClick={() => setShowSimulatedWarning(true)}
-                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('trigger-inactivity-warning-demo'));
+                }}
+                className="px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
               >
-                <Eye size={15} className="text-blue-600" /> Preview Inactivity Modal
+                <Eye size={15} className="text-blue-600" /> Test Inactivity Warning Modal
               </button>
 
               <button

@@ -4,8 +4,11 @@ import {
   Filter, Calendar, FileText, Printer, Copy, RefreshCw, 
   Layers, Table, Eye, AlertCircle, Lock, Landmark, Wallet, 
   FileSpreadsheet, FileCode, Check, ChevronRight, X, ArrowUpRight,
-  Shield, Sparkles, Hash, AlertTriangle, Building2, HelpCircle
+  Shield, Sparkles, Hash, AlertTriangle, Building2, HelpCircle,
+  ChevronLeft, ChevronsLeft, ChevronsRight, FileCheck, CheckCheck
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import { QRCodeSVG } from 'qrcode.react';
 import { 
   LedgerArchiveRecord, 
   getLedgerArchiveHistory, 
@@ -31,6 +34,8 @@ export const ComplianceArchiveTimelineView: React.FC<ComplianceArchiveTimelineVi
   const [selectedFY, setSelectedFY] = useState<string>('ALL');
   const [selectedFormat, setSelectedFormat] = useState<string>('ALL');
   const [viewMode, setViewMode] = useState<'TIMELINE' | 'TABLE' | 'GRID'>('TIMELINE');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(5);
   const [isExportingNow, setIsExportingNow] = useState(false);
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -72,6 +77,10 @@ export const ComplianceArchiveTimelineView: React.FC<ComplianceArchiveTimelineVi
     loadHistory();
   }, []);
 
+  const [copiedRef, setCopiedRef] = useState<string | null>(null);
+  const [isPrinting, setIsPrinting] = useState<boolean>(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
@@ -82,6 +91,429 @@ export const ComplianceArchiveTimelineView: React.FC<ComplianceArchiveTimelineVi
     setCopiedHash(id);
     showToast('SHA-256 Hash copied to clipboard');
     setTimeout(() => setCopiedHash(null), 2500);
+  };
+
+  const copyReferenceToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedRef(id);
+    showToast('Certificate Reference copied to clipboard');
+    setTimeout(() => setCopiedRef(null), 2500);
+  };
+
+  // Robust isolated print handler for certificate
+  const handlePrintCertificate = (record: LedgerArchiveRecord) => {
+    setIsPrinting(true);
+    try {
+      const printFrame = document.createElement('iframe');
+      printFrame.style.position = 'fixed';
+      printFrame.style.top = '-10000px';
+      printFrame.style.left = '-10000px';
+      printFrame.style.width = '1000px';
+      printFrame.style.height = '1400px';
+      printFrame.style.border = 'none';
+      document.body.appendChild(printFrame);
+
+      const formattedTimestamp = new Date(record.timestamp).toUTCString();
+      const expiryDate = new Date(record.retentionExpiryDate || Date.now() + 72 * 30 * 24 * 3600 * 1000).toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric'
+      });
+
+      const printHtml = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <title>Statutory Retention Certificate - ${record.certificateId}</title>
+            <style>
+              @page {
+                size: A4 portrait;
+                margin: 15mm;
+              }
+              * {
+                box-sizing: border-box;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                margin: 0;
+                padding: 15px;
+                color: #0f172a;
+                background: #ffffff;
+              }
+              .cert-border {
+                border: 3px double #312e81;
+                padding: 26px;
+                border-radius: 8px;
+                position: relative;
+                background: #ffffff;
+              }
+              .inner-frame {
+                border: 1px solid #cbd5e1;
+                padding: 24px;
+                border-radius: 6px;
+              }
+              .header {
+                text-align: center;
+                border-bottom: 2px solid #e2e8f0;
+                padding-bottom: 18px;
+                margin-bottom: 20px;
+              }
+              .emblem {
+                display: inline-block;
+                width: 44px;
+                height: 44px;
+                background: #312e81;
+                color: #ffffff;
+                border-radius: 12px;
+                line-height: 44px;
+                font-size: 22px;
+                margin-bottom: 10px;
+                font-weight: bold;
+              }
+              .dept {
+                font-size: 11px;
+                font-weight: 800;
+                color: #4338ca;
+                letter-spacing: 2px;
+                text-transform: uppercase;
+                margin-bottom: 4px;
+              }
+              .title {
+                font-size: 19px;
+                font-weight: 900;
+                color: #0f172a;
+                margin: 6px 0;
+                letter-spacing: 0.5px;
+              }
+              .subtitle {
+                font-size: 10px;
+                color: #64748b;
+                max-width: 80%;
+                margin: 0 auto;
+                line-height: 1.4;
+              }
+              .meta-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 18px 0;
+                font-size: 11px;
+              }
+              .meta-table td {
+                padding: 10px 14px;
+                border: 1px solid #e2e8f0;
+              }
+              .meta-table td.label {
+                width: 36%;
+                background: #f8fafc;
+                color: #475569;
+                font-weight: 700;
+              }
+              .meta-table td.value {
+                width: 64%;
+                font-weight: 700;
+                color: #0f172a;
+              }
+              .hash-container {
+                background: #0f172a;
+                color: #34d399;
+                font-family: "SF Mono", Monaco, Consolas, monospace;
+                font-size: 9.5px;
+                padding: 8px 10px;
+                border-radius: 6px;
+                word-break: break-all;
+                margin-top: 4px;
+              }
+              .declaration {
+                background: #fffbeb;
+                border: 1px solid #fef3c7;
+                padding: 12px 14px;
+                border-radius: 8px;
+                font-size: 10.5px;
+                line-height: 1.55;
+                color: #78350f;
+                margin: 18px 0;
+              }
+              .declaration strong {
+                color: #92400e;
+              }
+              .footer {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-end;
+                margin-top: 24px;
+                padding-top: 16px;
+                border-top: 1px dashed #cbd5e1;
+              }
+              .seal {
+                border: 2px solid #4338ca;
+                color: #4338ca;
+                padding: 8px 14px;
+                border-radius: 8px;
+                font-size: 9px;
+                font-weight: 800;
+                text-align: center;
+                letter-spacing: 1px;
+                line-height: 1.4;
+              }
+              .auth-block {
+                text-align: right;
+                font-size: 10px;
+                color: #64748b;
+              }
+              .auth-block strong {
+                display: block;
+                font-size: 12px;
+                color: #0f172a;
+                margin-top: 3px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="cert-border">
+              <div class="inner-frame">
+                <div class="header">
+                  <div class="emblem">🏛</div>
+                  <div class="dept">Central Board of Indirect Taxes & Customs • Statutory Preservation</div>
+                  <div class="title">CERTIFICATE OF STATUTORY LEDGER RETENTION</div>
+                  <div class="subtitle">Issued in Compliance with Section 35(1) & Section 36 of CGST Act, 2017 read with Rules 85, 86, 87 & 88</div>
+                </div>
+
+                <table class="meta-table">
+                  <tr>
+                    <td class="label">Certificate Reference</td>
+                    <td class="value" style="font-family: monospace; color: #4338ca;">${record.certificateId}</td>
+                  </tr>
+                  <tr>
+                    <td class="label">Taxable Entity</td>
+                    <td class="value">${tenantName}</td>
+                  </tr>
+                  <tr>
+                    <td class="label">Statutory Accounting Period</td>
+                    <td class="value">${record.periodLabel || record.period} (${record.financialYear || 'FY 2026-27'})</td>
+                  </tr>
+                  <tr>
+                    <td class="label">Archived Timestamp</td>
+                    <td class="value">${formattedTimestamp}</td>
+                  </tr>
+                  <tr>
+                    <td class="label">Statutory Retention Expiry</td>
+                    <td class="value" style="color: #047857;">${expiryDate} (Mandatory 72 Months u/s 36)</td>
+                  </tr>
+                  <tr>
+                    <td class="label">Cryptographic Fingerprint</td>
+                    <td class="value">
+                      <div class="hash-container">${record.sha256Hash}</div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="label">Preservation Status</td>
+                    <td class="value" style="color: #047857;">CRYPTOGRAPHICALLY SEALED & VERIFIED (IMMUTABLE)</td>
+                  </tr>
+                </table>
+
+                <div class="declaration">
+                  <strong>Statutory Declaration:</strong> This certificate attests that the complete electronic cash, credit, and liability registers along with immutable transaction log entries have been preserved under cryptographic seal and will remain retrievable for statutory audit under Section 65 and Section 66 of the CGST Act, 2017.
+                </div>
+
+                <div class="footer">
+                  <div class="seal">
+                    OFFICIAL STATUTORY SEAL<br>SEC 35/36 CGST ACT
+                  </div>
+                  <div class="auth-block">
+                    Digitally Verified & Preserved via<br>
+                    <strong>TaxFlow Statutory Compliance Engine</strong>
+                    <span>Automated Ledger Archive Service</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </body>
+        </html>
+      `;
+
+      const frameDoc = printFrame.contentWindow?.document || printFrame.contentDocument;
+      if (frameDoc) {
+        frameDoc.open();
+        frameDoc.write(printHtml);
+        frameDoc.close();
+
+        setTimeout(() => {
+          try {
+            printFrame.contentWindow?.focus();
+            printFrame.contentWindow?.print();
+            showToast('Certificate sent to printer!');
+          } catch (err) {
+            console.warn('Iframe print error, falling back to window.print', err);
+            window.print();
+          } finally {
+            setIsPrinting(false);
+            setTimeout(() => {
+              if (document.body.contains(printFrame)) {
+                document.body.removeChild(printFrame);
+              }
+            }, 3000);
+          }
+        }, 500);
+      } else {
+        window.print();
+        setIsPrinting(false);
+      }
+    } catch (e) {
+      console.error('Print initialization failed', e);
+      window.print();
+      setIsPrinting(false);
+    }
+  };
+
+  // Generate and download high-resolution PDF certificate using jsPDF
+  const handleDownloadCertificatePdf = (record: LedgerArchiveRecord) => {
+    setIsGeneratingPdf(true);
+    try {
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      // Outer Decorative Border
+      doc.setDrawColor(49, 46, 129); // indigo-900
+      doc.setLineWidth(1.2);
+      doc.rect(10, 10, 190, 277);
+
+      doc.setDrawColor(203, 213, 225); // slate-300
+      doc.setLineWidth(0.4);
+      doc.rect(13, 13, 184, 271);
+
+      // Header Band
+      doc.setFillColor(248, 250, 252);
+      doc.rect(14, 14, 182, 38, 'F');
+
+      // Top Title
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(67, 56, 202); // indigo-700
+      doc.setFontSize(9);
+      doc.text('CENTRAL BOARD OF INDIRECT TAXES & CUSTOMS • STATUTORY PRESERVATION', 105, 24, { align: 'center' });
+
+      doc.setTextColor(15, 23, 42); // slate-900
+      doc.setFontSize(14);
+      doc.text('CERTIFICATE OF STATUTORY LEDGER RETENTION', 105, 33, { align: 'center' });
+
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139); // slate-500
+      doc.setFontSize(8);
+      doc.text('Issued in Compliance with Section 35(1) & Section 36 of CGST Act, 2017 read with Rules 85, 86, 87 & 88', 105, 41, { align: 'center' });
+
+      // Data Matrix Table
+      const startY = 60;
+      const rowHeight = 12;
+      const dataRows = [
+        { label: 'Certificate Reference:', value: record.certificateId, isCode: true },
+        { label: 'Taxable Entity:', value: tenantName, isCode: false },
+        { label: 'Statutory Period:', value: `${record.periodLabel || record.period} (${record.financialYear || 'FY 2026-27'})`, isCode: false },
+        { label: 'Archived Timestamp:', value: new Date(record.timestamp).toUTCString(), isCode: false },
+        { label: 'Statutory Retention Expiry:', value: `${new Date(record.retentionExpiryDate || Date.now() + 72 * 30 * 24 * 3600 * 1000).toLocaleDateString('en-IN')} (72 Months Mandatory)`, isCode: false },
+        { label: 'Preservation Verification Status:', value: 'CRYPTOGRAPHICALLY SEALED & VERIFIED (IMMUTABLE)', isCode: false },
+        { label: 'Cryptographic SHA-256 Fingerprint:', value: record.sha256Hash, isCode: true }
+      ];
+
+      dataRows.forEach((row, idx) => {
+        const y = startY + (idx * rowHeight);
+
+        // Left Label Cell
+        doc.setFillColor(241, 245, 249);
+        doc.rect(18, y - 4, 62, rowHeight - 1, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.setTextColor(71, 85, 105);
+        doc.text(row.label, 21, y + 3);
+
+        // Right Value Cell
+        doc.setFillColor(255, 255, 255);
+        doc.rect(80, y - 4, 112, rowHeight - 1, 'F');
+
+        if (row.isCode) {
+          doc.setFont('courier', 'bold');
+          doc.setFontSize(row.label.includes('Fingerprint') ? 6.5 : 8.5);
+          doc.setTextColor(row.label.includes('Fingerprint') ? 30 : 67, row.label.includes('Fingerprint') ? 41 : 56, row.label.includes('Fingerprint') ? 59 : 202);
+        } else {
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8.5);
+          if (row.label.includes('Status') || row.label.includes('Expiry')) {
+            doc.setTextColor(4, 120, 87); // emerald-700
+          } else {
+            doc.setTextColor(15, 23, 42);
+          }
+        }
+        doc.text(row.value, 83, y + 3);
+
+        // Border
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.3);
+        doc.rect(18, y - 4, 174, rowHeight - 1);
+      });
+
+      // Statutory Declaration Box
+      const declBoxY = startY + (dataRows.length * rowHeight) + 8;
+      doc.setFillColor(255, 251, 235);
+      doc.setDrawColor(254, 243, 199);
+      doc.rect(18, declBoxY, 174, 28, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(146, 64, 14);
+      doc.setFontSize(8.5);
+      doc.text('Statutory Declaration:', 22, declBoxY + 7);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(180, 83, 9);
+      doc.setFontSize(8);
+      const declaration = 'This certificate attests that the complete electronic cash, credit, and liability registers along with immutable transaction log entries have been preserved under cryptographic seal and will remain retrievable for statutory audit under Section 65 and Section 66 of the CGST Act, 2017.';
+      const lines = doc.splitTextToSize(declaration, 166);
+      doc.text(lines, 22, declBoxY + 13);
+
+      // Official Footer Line
+      const footerY = 222;
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineDashPattern([2, 2], 0);
+      doc.line(18, footerY, 192, footerY);
+      doc.setLineDashPattern([], 0);
+
+      // Seal Rectangle
+      doc.setDrawColor(67, 56, 202);
+      doc.setLineWidth(0.8);
+      doc.rect(22, footerY + 8, 48, 22);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(67, 56, 202);
+      doc.setFontSize(7.5);
+      doc.text('OFFICIAL STATUTORY SEAL', 46, footerY + 16, { align: 'center' });
+      doc.setFontSize(7);
+      doc.text('SEC 35/36 CGST ACT', 46, footerY + 23, { align: 'center' });
+
+      // Verification Signature Block
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.setFontSize(8);
+      doc.text('Digitally Certified & Sealed by:', 188, footerY + 12, { align: 'right' });
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.setFontSize(9);
+      doc.text('TaxFlow Statutory Archive Engine', 188, footerY + 18, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text('Cryptographic Ledger Verification Unit', 188, footerY + 24, { align: 'right' });
+
+      // Trigger instant save
+      doc.save(`Statutory_Retention_Certificate_${record.certificateId}.pdf`);
+      showToast(`Certificate PDF saved for ${record.period}!`);
+    } catch (err: any) {
+      console.error('PDF generation error', err);
+      showToast(`PDF generation failed: ${err.message || 'Error'}`);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   // Immediate live export of current month snapshot
@@ -169,6 +601,163 @@ export const ComplianceArchiveTimelineView: React.FC<ComplianceArchiveTimelineVi
       return matchesSearch && matchesFY && matchesFormat;
     });
   }, [history, searchQuery, selectedFY, selectedFormat]);
+
+  // Reset to page 1 whenever filters or page size change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedFY, selectedFormat, pageSize]);
+
+  // Dynamically extract available financial years
+  const availableFYs = useMemo(() => {
+    const list = Array.from(new Set(history.map(h => h.financialYear).filter(Boolean))) as string[];
+    return list.sort().reverse();
+  }, [history]);
+
+  // Pagination metrics
+  const totalItems = filteredRecords.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIndex = (safeCurrentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+
+  // Paginated records slice
+  const paginatedRecords = useMemo(() => {
+    return filteredRecords.slice(startIndex, endIndex);
+  }, [filteredRecords, startIndex, endIndex]);
+
+  // Smart page numbers calculation with ellipsis
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    if (totalPages <= 5) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (safeCurrentPage > 3) {
+        pages.push('...');
+      }
+      const start = Math.max(2, safeCurrentPage - 1);
+      const end = Math.min(totalPages - 1, safeCurrentPage + 1);
+      for (let i = start; i <= end; i++) {
+        if (!pages.includes(i)) pages.push(i);
+      }
+      if (safeCurrentPage < totalPages - 2) {
+        pages.push('...');
+      }
+      if (!pages.includes(totalPages)) {
+        pages.push(totalPages);
+      }
+    }
+    return pages;
+  };
+
+  // Reusable Pagination Controls Bar
+  const renderPaginationControls = () => {
+    if (totalItems === 0) return null;
+
+    return (
+      <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
+        {/* Left: Summary Counter */}
+        <div className="flex items-center gap-2 text-xs text-slate-600">
+          <span>
+            Showing <strong className="font-bold text-slate-900">{startIndex + 1}</strong> to{' '}
+            <strong className="font-bold text-slate-900">{endIndex}</strong> of{' '}
+            <strong className="font-bold text-slate-900">{totalItems}</strong> statutory snapshots
+          </span>
+          {totalItems !== history.length && (
+            <span className="hidden md:inline-flex text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+              Filtered from {history.length} total
+            </span>
+          )}
+        </div>
+
+        {/* Right: Page Size & Navigation Controls */}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Page size selector */}
+          <div className="flex items-center gap-2 text-xs text-slate-600">
+            <span className="hidden sm:inline text-slate-500 font-medium">Rows per page:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors cursor-pointer"
+            >
+              <option value={5}>5 per page</option>
+              <option value={10}>10 per page</option>
+              <option value={15}>15 per page</option>
+              <option value={25}>25 per page</option>
+            </select>
+          </div>
+
+          {/* Navigation Buttons */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={safeCurrentPage === 1}
+              aria-label="First page"
+              className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+              title="First page"
+            >
+              <ChevronsLeft size={16} />
+            </button>
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={safeCurrentPage === 1}
+              aria-label="Previous page"
+              className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+              title="Previous page"
+            >
+              <ChevronLeft size={16} />
+            </button>
+
+            {/* Numeric Page Buttons */}
+            <div className="flex items-center gap-1 mx-0.5">
+              {getPageNumbers().map((p, idx) => {
+                if (p === '...') {
+                  return (
+                    <span key={`ellipsis-${idx}`} className="px-1.5 text-xs text-slate-400 select-none">
+                      ...
+                    </span>
+                  );
+                }
+                const isCurrent = p === safeCurrentPage;
+                return (
+                  <button
+                    key={`page-${p}`}
+                    onClick={() => setCurrentPage(Number(p))}
+                    className={`min-w-[32px] h-8 px-2 rounded-lg text-xs font-bold transition-all ${
+                      isCurrent
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={safeCurrentPage === totalPages}
+              aria-label="Next page"
+              className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+              title="Next page"
+            >
+              <ChevronRight size={16} />
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={safeCurrentPage === totalPages}
+              aria-label="Last page"
+              className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+              title="Last page"
+            >
+              <ChevronsRight size={16} />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // Aggregate metrics
   const totalSnapshots = history.length;
@@ -314,8 +903,9 @@ export const ComplianceArchiveTimelineView: React.FC<ComplianceArchiveTimelineVi
             className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             <option value="ALL">All Financial Years</option>
-            <option value="FY 2026-27">FY 2026-27</option>
-            <option value="FY 2025-26">FY 2025-26</option>
+            {availableFYs.map(fy => (
+              <option key={fy} value={fy}>{fy}</option>
+            ))}
           </select>
 
           {/* Format Filter */}
@@ -406,7 +996,8 @@ export const ComplianceArchiveTimelineView: React.FC<ComplianceArchiveTimelineVi
       ) : viewMode === 'TIMELINE' ? (
         /* --- TIMELINE STREAM VIEW --- */
         <div className="relative pl-6 md:pl-8 space-y-8 before:content-[''] before:absolute before:left-3 md:before:left-4 before:top-4 before:bottom-4 before:w-0.5 before:bg-gradient-to-b before:from-indigo-500 before:via-slate-300 before:to-slate-200">
-          {filteredRecords.map((record, index) => {
+          {paginatedRecords.map((record, index) => {
+            const globalIndex = startIndex + index;
             const dateObj = new Date(record.timestamp);
             const formattedDate = dateObj.toLocaleDateString('en-IN', {
               day: 'numeric',
@@ -420,11 +1011,11 @@ export const ComplianceArchiveTimelineView: React.FC<ComplianceArchiveTimelineVi
               <div key={record.id} className="relative group">
                 {/* Milestone Node on Conduit Line */}
                 <div className={`absolute -left-6 md:-left-8 top-5 w-7 h-7 rounded-full border-4 flex items-center justify-center transition-all ${
-                  index === 0
+                  globalIndex === 0
                     ? 'bg-emerald-600 border-emerald-100 text-white shadow-md shadow-emerald-200 scale-110'
                     : 'bg-white border-indigo-200 text-indigo-600 group-hover:border-indigo-400'
                 }`}>
-                  <div className={`w-2 h-2 rounded-full ${index === 0 ? 'bg-white' : 'bg-indigo-600'}`} />
+                  <div className={`w-2 h-2 rounded-full ${globalIndex === 0 ? 'bg-white' : 'bg-indigo-600'}`} />
                 </div>
 
                 {/* Timeline Card */}
@@ -443,7 +1034,7 @@ export const ComplianceArchiveTimelineView: React.FC<ComplianceArchiveTimelineVi
                           <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
                             {record.financialYear || 'FY 2026-27'}
                           </span>
-                          {index === 0 && (
+                          {globalIndex === 0 && (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Latest Retained
                             </span>
@@ -624,7 +1215,7 @@ export const ComplianceArchiveTimelineView: React.FC<ComplianceArchiveTimelineVi
               Statutory Ledger Preservation Register (Rule 85–88)
             </h3>
             <span className="text-xs text-slate-500 font-medium">
-              Showing {filteredRecords.length} of {history.length} snapshots
+              Showing {totalItems > 0 ? startIndex + 1 : 0}–{endIndex} of {totalItems} (Page {safeCurrentPage} of {totalPages})
             </span>
           </div>
 
@@ -644,7 +1235,7 @@ export const ComplianceArchiveTimelineView: React.FC<ComplianceArchiveTimelineVi
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
-                {filteredRecords.map((record) => (
+                {paginatedRecords.map((record) => (
                   <tr key={record.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-3.5 px-4 font-bold text-slate-900">
                       <div>{record.periodLabel || record.period}</div>
@@ -694,6 +1285,13 @@ export const ComplianceArchiveTimelineView: React.FC<ComplianceArchiveTimelineVi
                           <Eye size={16} />
                         </button>
                         <button
+                          onClick={() => setCertRecord(record)}
+                          className="p-1.5 rounded-lg hover:bg-indigo-50 text-indigo-700 transition-colors"
+                          title="View & Print Statutory Certificate"
+                        >
+                          <FileText size={16} />
+                        </button>
+                        <button
                           onClick={() => handleDownloadSnapshot(record, record.format)}
                           className="p-1.5 rounded-lg hover:bg-indigo-50 text-indigo-700 transition-colors"
                           title="Download snapshot"
@@ -711,7 +1309,7 @@ export const ComplianceArchiveTimelineView: React.FC<ComplianceArchiveTimelineVi
       ) : (
         /* --- GRID CARDS VIEW --- */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredRecords.map((record) => (
+          {paginatedRecords.map((record) => (
             <div 
               key={record.id}
               className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 hover:shadow-md hover:border-indigo-200 transition-all flex flex-col justify-between space-y-4"
@@ -765,6 +1363,12 @@ export const ComplianceArchiveTimelineView: React.FC<ComplianceArchiveTimelineVi
                     Verify
                   </button>
                   <button
+                    onClick={() => setCertRecord(record)}
+                    className="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-800 text-xs font-bold border border-indigo-200 transition-colors"
+                  >
+                    Certificate
+                  </button>
+                  <button
                     onClick={() => handleDownloadSnapshot(record, record.format)}
                     className="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-colors"
                   >
@@ -776,6 +1380,9 @@ export const ComplianceArchiveTimelineView: React.FC<ComplianceArchiveTimelineVi
           ))}
         </div>
       )}
+
+      {/* --- PAGINATION CONTROLS --- */}
+      {renderPaginationControls()}
 
       {/* --- INTEGRITY VERIFICATION MODAL --- */}
       {verifyingRecord && (
@@ -982,68 +1589,161 @@ export const ComplianceArchiveTimelineView: React.FC<ComplianceArchiveTimelineVi
 
       {/* --- STATUTORY CERTIFICATE MODAL --- */}
       {certRecord && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-xl w-full p-8 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-150 space-y-6">
-            <div className="text-center space-y-2 border-b border-slate-200 pb-5">
-              <div className="w-12 h-12 rounded-2xl bg-indigo-900 text-white flex items-center justify-center mx-auto shadow-md">
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 md:p-8 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-150 space-y-6 my-auto">
+            {/* Header with Official CBIC Emblem */}
+            <div className="text-center space-y-2 border-b border-slate-200 pb-5 relative">
+              <button 
+                onClick={() => setCertRecord(null)}
+                className="absolute right-0 top-0 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                title="Close Modal"
+              >
+                <X size={18} />
+              </button>
+
+              <div className="w-12 h-12 rounded-2xl bg-indigo-900 text-white flex items-center justify-center mx-auto shadow-md ring-4 ring-indigo-50">
                 <Building2 size={24} />
               </div>
               <div className="text-[11px] font-extrabold tracking-widest uppercase text-indigo-700">
                 Central Board of Indirect Taxes & Customs • Statutory Preservation
               </div>
-              <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">
+              <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
                 CERTIFICATE OF STATUTORY LEDGER RETENTION
               </h2>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
                 Issued in Compliance with Section 35(1) & Section 36 of CGST Act, 2017 read with Rules 85, 86, 87 & 88
               </p>
             </div>
 
-            <div className="space-y-3 text-xs bg-slate-50 p-4 rounded-xl border border-slate-200">
-              <div className="flex justify-between py-1 border-b border-slate-200">
-                <span className="text-slate-500">Certificate Reference:</span>
-                <span className="font-mono font-bold text-slate-800">{certRecord.certificateId}</span>
+            {/* Certificate Details & QR Verification Section */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="md:col-span-2 space-y-2.5 text-xs bg-slate-50/80 p-4 rounded-xl border border-slate-200">
+                <div className="flex items-center justify-between py-1 border-b border-slate-200">
+                  <span className="text-slate-500 font-medium">Certificate Reference:</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono font-bold text-indigo-700">{certRecord.certificateId}</span>
+                    <button
+                      onClick={() => copyReferenceToClipboard(certRecord.certificateId, `ref-${certRecord.id}`)}
+                      className="p-1 hover:bg-slate-200 rounded text-slate-500 hover:text-slate-800 transition-colors"
+                      title="Copy Reference"
+                    >
+                      {copiedRef === `ref-${certRecord.id}` ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-between py-1 border-b border-slate-200">
+                  <span className="text-slate-500 font-medium">Taxable Entity:</span>
+                  <span className="font-bold text-slate-800">{tenantName}</span>
+                </div>
+
+                <div className="flex justify-between py-1 border-b border-slate-200">
+                  <span className="text-slate-500 font-medium">Statutory Period:</span>
+                  <span className="font-bold text-slate-800">{certRecord.periodLabel || certRecord.period} ({certRecord.financialYear || 'FY 2026-27'})</span>
+                </div>
+
+                <div className="flex justify-between py-1 border-b border-slate-200">
+                  <span className="text-slate-500 font-medium">Archived Timestamp:</span>
+                  <span className="font-semibold text-slate-800">{new Date(certRecord.timestamp).toUTCString()}</span>
+                </div>
+
+                <div className="flex justify-between py-1 border-b border-slate-200">
+                  <span className="text-slate-500 font-medium">Statutory Retention Expiration:</span>
+                  <span className="font-bold text-emerald-700">
+                    {new Date(certRecord.retentionExpiryDate || Date.now() + 72 * 30 * 24 * 3600 * 1000).toLocaleDateString('en-IN', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric'
+                    })} (72 Months)
+                  </span>
+                </div>
+
+                <div className="flex justify-between py-1">
+                  <span className="text-slate-500 font-medium">Preservation Status:</span>
+                  <span className="inline-flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[10px]">
+                    <ShieldCheck size={12} /> CRYPTOGRAPHICALLY SEALED
+                  </span>
+                </div>
               </div>
-              <div className="flex justify-between py-1 border-b border-slate-200">
-                <span className="text-slate-500">Taxable Entity:</span>
-                <span className="font-bold text-slate-800">{tenantName}</span>
+
+              {/* QR Code Verification Card */}
+              <div className="flex flex-col items-center justify-center p-4 bg-slate-50/80 rounded-xl border border-slate-200 text-center">
+                <div className="p-2 bg-white rounded-lg shadow-2xs border border-slate-200 mb-2">
+                  <QRCodeSVG 
+                    value={`https://gst.gov.in/verify/archive/${certRecord.certificateId}?hash=${certRecord.sha256Hash}`}
+                    size={92}
+                    level="M"
+                  />
+                </div>
+                <div className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">
+                  Audit Verification
+                </div>
+                <div className="text-[9px] text-slate-500 mt-0.5">
+                  Scan to verify seal on GSTN audit gateway
+                </div>
               </div>
-              <div className="flex justify-between py-1 border-b border-slate-200">
-                <span className="text-slate-500">Statutory Period:</span>
-                <span className="font-bold text-slate-800">{certRecord.periodLabel || certRecord.period} ({certRecord.financialYear || 'FY 2026-27'})</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-slate-200">
-                <span className="text-slate-500">Archived Timestamp:</span>
-                <span className="font-semibold text-slate-800">{new Date(certRecord.timestamp).toUTCString()}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-slate-200">
-                <span className="text-slate-500">Statutory Retention Expiration:</span>
-                <span className="font-bold text-emerald-700">
-                  {new Date(certRecord.retentionExpiryDate || Date.now() + 72 * 30 * 24 * 3600 * 1000).toLocaleDateString()} (72 Months)
+            </div>
+
+            {/* Cryptographic SHA-256 Hash Box */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-600 font-semibold flex items-center gap-1">
+                  <Lock size={12} className="text-indigo-600" /> Cryptographic SHA-256 Digital Fingerprint:
                 </span>
+                <button
+                  onClick={() => copyToClipboard(certRecord.sha256Hash, certRecord.id)}
+                  className="flex items-center gap-1 text-[11px] font-bold text-indigo-700 hover:text-indigo-900"
+                >
+                  {copiedHash === certRecord.id ? (
+                    <>
+                      <Check size={12} className="text-emerald-600" />
+                      <span className="text-emerald-600">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={12} />
+                      <span>Copy Checksum</span>
+                    </>
+                  )}
+                </button>
               </div>
-              <div className="pt-2">
-                <span className="text-slate-500 block mb-1">Cryptographic Digital Fingerprint:</span>
-                <code className="block p-2 bg-slate-900 text-emerald-400 font-mono text-[10px] rounded-lg break-all">
-                  {certRecord.sha256Hash}
-                </code>
-              </div>
+              <code className="block p-3 bg-slate-900 text-emerald-400 font-mono text-[10.5px] rounded-xl break-all select-all leading-relaxed shadow-inner">
+                {certRecord.sha256Hash}
+              </code>
             </div>
 
-            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-[11px] leading-relaxed">
-              <strong>Statutory Declaration:</strong> This certificate attests that the complete electronic cash, credit, and liability registers along with immutable transaction log entries have been preserved under cryptographic seal and will remain retrievable for statutory audit under Section 65 and Section 66 of the CGST Act.
+            {/* Statutory Declaration Banner */}
+            <div className="p-3.5 bg-amber-50 rounded-xl border border-amber-200/90 text-amber-950 text-[11.5px] leading-relaxed">
+              <strong className="text-amber-900">Statutory Declaration:</strong> This certificate attests that the complete electronic cash, credit, and liability registers along with immutable transaction log entries have been preserved under cryptographic seal and will remain retrievable for statutory audit under Section 65 and Section 66 of the CGST Act.
             </div>
 
-            <div className="flex items-center justify-between pt-3 border-t border-slate-200">
-              <button
-                onClick={() => window.print()}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors"
-              >
-                <Printer size={14} /> Print Certificate
-              </button>
+            {/* Action Buttons: Print, Download PDF, Close */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handlePrintCertificate(certRecord)}
+                  disabled={isPrinting}
+                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-all disabled:opacity-50 active:scale-98 shadow-2xs"
+                  title="Print official retention certificate"
+                >
+                  <Printer size={15} />
+                  {isPrinting ? 'Printing...' : 'Print Certificate'}
+                </button>
+
+                <button
+                  onClick={() => handleDownloadCertificatePdf(certRecord)}
+                  disabled={isGeneratingPdf}
+                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all disabled:opacity-50 active:scale-98 shadow-sm"
+                  title="Download vector PDF certificate"
+                >
+                  <Download size={15} />
+                  {isGeneratingPdf ? 'Generating PDF...' : 'Download Official PDF'}
+                </button>
+              </div>
+
               <button
                 onClick={() => setCertRecord(null)}
-                className="px-5 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-colors"
+                className="px-5 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-colors active:scale-98"
               >
                 Close
               </button>

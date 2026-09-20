@@ -43,7 +43,7 @@ export interface FieldMappingRule {
 }
 
 interface Props {
-  erpType: 'BUSINESS_CENTRAL' | 'DYNAMICS_FO' | 'TALLY_PRIME';
+  erpType: 'BUSINESS_CENTRAL' | 'DYNAMICS_FO' | 'TALLY_PRIME' | 'QUICKBOOKS' | 'XERO' | 'DYNAMICS_BC' | string;
   onSaveMappings?: (rules: FieldMappingRule[]) => void;
 }
 
@@ -61,6 +61,47 @@ const DEFAULT_FO_ENTITIES = [
   { id: 'VendInvoiceInfoSubLineEntities', name: 'VendInvoiceInfoSubLineEntities (Vendor Invoices)' },
   { id: 'CustomerV3Entities', name: 'CustomerV3Entities (Customer Master V3)' },
   { id: 'TaxGroupEntities', name: 'TaxGroupEntities (Tax Posting Groups)' },
+];
+
+const DEFAULT_SAP_ENTITIES = [
+  { id: 'API_BILLING_DOCUMENT_SRV', name: 'API_BILLING_DOCUMENT_SRV (VF01/VF03 SD Invoices)' },
+  { id: 'API_SUPPLIERINVOICE_PROCESS_SRV', name: 'API_SUPPLIERINVOICE_PROCESS_SRV (MIRO MM Vendor Invoices)' },
+  { id: 'A_Customer', name: 'A_Customer (Business Partner SD Master)' },
+  { id: 'A_Supplier', name: 'A_Supplier (Vendor Master MM)' },
+  { id: 'A_JournalEntryItem', name: 'A_JournalEntryItem (FI General Ledger)' },
+];
+
+const DEFAULT_ORACLE_ENTITIES = [
+  { id: 'invoice', name: 'invoice (Sales Invoices & Billing)' },
+  { id: 'vendorBill', name: 'vendorBill (Accounts Payable Bills & ITC)' },
+  { id: 'creditMemo', name: 'creditMemo (Credit Memos)' },
+  { id: 'customer', name: 'customer (Entity Customer Master)' },
+  { id: 'vendor', name: 'vendor (Vendor Master)' },
+  { id: 'taxCode', name: 'taxCode (SuiteTax GST Codes)' },
+];
+
+const DEFAULT_ZOHO_ENTITIES = [
+  { id: 'invoices', name: 'invoices (Outward Tax Invoices)' },
+  { id: 'bills', name: 'bills (Inward Vendor Bills & ITC)' },
+  { id: 'contacts', name: 'contacts (Customers & Vendors)' },
+  { id: 'taxes', name: 'taxes (GST Rates & Slabs)' },
+  { id: 'chartofaccounts', name: 'chartofaccounts (General Ledger)' },
+];
+
+const DEFAULT_QB_ENTITIES = [
+  { id: 'Invoices', name: 'Invoices (Customer Sales Invoices)' },
+  { id: 'Bills', name: 'Bills (Vendor Expenses & Purchases)' },
+  { id: 'Customers', name: 'Customers (Customer Master)' },
+  { id: 'Vendors', name: 'Vendors (Vendor Master)' },
+  { id: 'TaxCodes', name: 'TaxCodes (GST Agencies & Slabs)' },
+];
+
+const DEFAULT_XERO_ENTITIES = [
+  { id: 'Invoices', name: 'Invoices (ACCREC Sales Invoices)' },
+  { id: 'Bills', name: 'Bills (ACCPAY Purchase Bills)' },
+  { id: 'Contacts', name: 'Contacts (Customer & Supplier Master)' },
+  { id: 'TaxRates', name: 'TaxRates (Tax Rates & Components)' },
+  { id: 'ManualJournals', name: 'ManualJournals (GL Tax Adjustments)' },
 ];
 
 const DEFAULT_TALLY_ENTITIES = [
@@ -446,12 +487,28 @@ const INITIAL_TALLY_RULES: FieldMappingRule[] = [
 ];
 
 export const FieldMappingConfiguration: React.FC<Props> = ({ erpType, onSaveMappings }) => {
-  const isBc = erpType === 'BUSINESS_CENTRAL';
-  const isTally = erpType === 'TALLY_PRIME';
-  const entityList = isTally ? DEFAULT_TALLY_ENTITIES : isBc ? DEFAULT_BC_ENTITIES : DEFAULT_FO_ENTITIES;
+  const normType = (erpType || '').toUpperCase();
+  const isTally = normType.includes('TALLY');
+  const isBc = normType.includes('BC') || normType.includes('BUSINESS_CENTRAL');
+  const isFo = normType.includes('FO') || normType.includes('DYNAMICS_FO');
+  const isSap = normType.includes('SAP');
+  const isOracle = normType.includes('ORACLE') || normType.includes('NETSUITE');
+  const isZoho = normType.includes('ZOHO');
+  const isQb = normType.includes('QB') || normType.includes('QUICKBOOKS');
+  const isXero = normType.includes('XERO');
+
+  const entityList = isTally ? DEFAULT_TALLY_ENTITIES 
+    : isSap ? DEFAULT_SAP_ENTITIES
+    : isOracle ? DEFAULT_ORACLE_ENTITIES
+    : isZoho ? DEFAULT_ZOHO_ENTITIES
+    : isQb ? DEFAULT_QB_ENTITIES
+    : isXero ? DEFAULT_XERO_ENTITIES
+    : isBc ? DEFAULT_BC_ENTITIES 
+    : DEFAULT_FO_ENTITIES;
+
   const standardFieldsMap = isTally ? STANDARD_TALLY_FIELDS : isBc ? STANDARD_BC_FIELDS : STANDARD_FO_FIELDS;
 
-  const [selectedEntity, setSelectedEntity] = useState<string>(entityList[0].id);
+  const [selectedEntity, setSelectedEntity] = useState<string>(entityList[0]?.id || 'salesInvoices');
   const [rules, setRules] = useState<FieldMappingRule[]>(isTally ? INITIAL_TALLY_RULES : isBc ? INITIAL_BC_RULES : INITIAL_FO_RULES);
   const [searchTerm, setSearchTerm] = useState('');
   const [directionFilter, setDirectionFilter] = useState<'ALL' | 'IMPORT' | 'EXPORT' | 'BIDIRECTIONAL'>('ALL');

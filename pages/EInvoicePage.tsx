@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store/store';
@@ -18,6 +18,7 @@ import { Invoice, InvoiceItem, UserRole } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import { EInvoiceQrCodeModal } from '../components/EInvoiceQrCodeModal';
+import { EInvoicePagination } from '../components/EInvoicePagination';
 
 export default function EInvoicePage() {
   const queryClient = useQueryClient();
@@ -313,6 +314,45 @@ export default function EInvoicePage() {
     });
   }, [eligibleInvoices, searchQuery, statusFilter]);
 
+  // Registry Pagination State
+  const [registryCurrentPage, setRegistryCurrentPage] = useState(1);
+  const [registryPageSize, setRegistryPageSize] = useState(10);
+
+  // Auto-reset page when registry search query, status filter, or page size changes
+  useEffect(() => {
+    setRegistryCurrentPage(1);
+  }, [searchQuery, statusFilter, registryPageSize]);
+
+  const registryTotalItems = registryInvoices.length;
+  const registryTotalPages = Math.max(1, Math.ceil(registryTotalItems / registryPageSize));
+  const safeRegistryCurrentPage = Math.min(Math.max(1, registryCurrentPage), registryTotalPages);
+
+  const paginatedRegistryInvoices = useMemo(() => {
+    const start = (safeRegistryCurrentPage - 1) * registryPageSize;
+    return registryInvoices.slice(start, start + registryPageSize);
+  }, [registryInvoices, safeRegistryCurrentPage, registryPageSize]);
+
+  // Console (Pending Actions) Invoices & Pagination State
+  const consoleInvoices = useMemo(() => {
+    return eligibleInvoices.filter(i => i.status === 'PENDING' || i.status === 'FAILED');
+  }, [eligibleInvoices]);
+
+  const [consoleCurrentPage, setConsoleCurrentPage] = useState(1);
+  const [consolePageSize, setConsolePageSize] = useState(10);
+
+  useEffect(() => {
+    setConsoleCurrentPage(1);
+  }, [consolePageSize]);
+
+  const consoleTotalItems = consoleInvoices.length;
+  const consoleTotalPages = Math.max(1, Math.ceil(consoleTotalItems / consolePageSize));
+  const safeConsoleCurrentPage = Math.min(Math.max(1, consoleCurrentPage), consoleTotalPages);
+
+  const paginatedConsoleInvoices = useMemo(() => {
+    const start = (safeConsoleCurrentPage - 1) * consolePageSize;
+    return consoleInvoices.slice(start, start + consolePageSize);
+  }, [consoleInvoices, safeConsoleCurrentPage, consolePageSize]);
+
   // Interactive IRN Lookup Search
   const handleIRNLookup = (e: React.FormEvent) => {
     e.preventDefault();
@@ -577,97 +617,109 @@ export default function EInvoicePage() {
               </div>
             </div>
 
-            {eligibleInvoices.filter(i => i.status === 'PENDING' || i.status === 'FAILED').length === 0 ? (
+            {consoleInvoices.length === 0 ? (
               <div className="text-center py-12 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
                 <ShieldCheck size={40} className="text-green-500 mx-auto" />
                 <h4 className="text-sm font-bold text-slate-700 mt-3">All Invoices Fully Registered</h4>
                 <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">There are no pending or failed sales invoices awaiting E-Invoicing actions.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 text-slate-500 font-extrabold border-b border-slate-200">
-                      <th className="p-4 uppercase tracking-wider">Doc Number / Date</th>
-                      <th className="p-4 uppercase tracking-wider">Party / GSTIN</th>
-                      <th className="p-4 uppercase tracking-wider">Place of Supply</th>
-                      <th className="p-4 uppercase tracking-wider text-right">Taxable / Tax Amount</th>
-                      <th className="p-4 uppercase tracking-wider">E-Invoice Status</th>
-                      <th className="p-4 uppercase tracking-wider text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {eligibleInvoices.filter(i => i.status === 'PENDING' || i.status === 'FAILED').map(inv => (
-                      <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="p-4 font-bold">
-                          <p className="text-slate-800">{inv.invoiceNumber}</p>
-                          <p className="text-slate-400 text-[10px]">{inv.date}</p>
-                        </td>
-                        <td className="p-4">
-                          <p className="font-bold text-slate-800">{inv.partyName}</p>
-                          <p className="font-mono text-slate-400 text-[10px]">{inv.gstin || 'EXPORT (UNREGISTERED)'}</p>
-                        </td>
-                        <td className="p-4">
-                          <span className="font-semibold text-slate-700">{inv.placeOfSupply || 'Export'}</span>
-                        </td>
-                        <td className="p-4 text-right font-bold">
-                          <p className="text-slate-800">₹{inv.amount.toLocaleString()}</p>
-                          <p className="text-slate-400 text-[10px]">₹{inv.taxAmount.toLocaleString()}</p>
-                        </td>
-                        <td className="p-4">
-                          {inv.status === 'FAILED' ? (
-                            <div className="space-y-1">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-red-100 text-red-700 border border-red-200">
-                                <AlertTriangle size={10} />
-                                FAILED
-                              </span>
-                              <p className="text-[10px] text-red-600 font-semibold max-w-[200px] truncate" title={inv.irnError}>
-                                {inv.irnError}
-                              </p>
-                            </div>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-700 border border-blue-200">
-                              <RefreshCw size={10} className="animate-spin" />
-                              PENDING IRP
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-4 text-right space-x-2">
-                          <button
-                            onClick={() => openStatutoryQrModal(inv)}
-                            className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] rounded-lg transition-colors flex items-center gap-1 inline-flex shadow-2xs"
-                            title="Generate and inspect compliant QR Code"
-                          >
-                            <QrCode size={12} className="text-blue-600" />
-                            <span>QR Code</span>
-                          </button>
-                          {inv.status === 'FAILED' ? (
-                            <button
-                              onClick={() => openRetryModal(inv)}
-                              className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white font-extrabold text-[11px] rounded-lg shadow-xs transition-colors flex items-center gap-1 inline-flex"
-                            >
-                              <Edit3 size={11} />
-                              <span>Resolve & Retry</span>
-                            </button>
-                          ) : (
-                            <button
-                              disabled={generatingId === inv.id}
-                              onClick={() => generateIrn(inv.id)}
-                              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-300 text-white font-extrabold text-[11px] rounded-lg shadow-xs transition-colors flex items-center gap-1 inline-flex"
-                            >
-                              {generatingId === inv.id ? (
-                                <RefreshCw size={11} className="animate-spin" />
-                              ) : (
-                                <Zap size={11} />
-                              )}
-                              <span>Generate IRN</span>
-                            </button>
-                          )}
-                        </td>
+              <div className="overflow-hidden border border-slate-200 rounded-xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-500 font-extrabold border-b border-slate-200">
+                        <th className="p-4 uppercase tracking-wider">Doc Number / Date</th>
+                        <th className="p-4 uppercase tracking-wider">Party / GSTIN</th>
+                        <th className="p-4 uppercase tracking-wider">Place of Supply</th>
+                        <th className="p-4 uppercase tracking-wider text-right">Taxable / Tax Amount</th>
+                        <th className="p-4 uppercase tracking-wider">E-Invoice Status</th>
+                        <th className="p-4 uppercase tracking-wider text-right">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {paginatedConsoleInvoices.map(inv => (
+                        <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="p-4 font-bold">
+                            <p className="text-slate-800">{inv.invoiceNumber}</p>
+                            <p className="text-slate-400 text-[10px]">{inv.date}</p>
+                          </td>
+                          <td className="p-4">
+                            <p className="font-bold text-slate-800">{inv.partyName}</p>
+                            <p className="font-mono text-slate-400 text-[10px]">{inv.gstin || 'EXPORT (UNREGISTERED)'}</p>
+                          </td>
+                          <td className="p-4">
+                            <span className="font-semibold text-slate-700">{inv.placeOfSupply || 'Export'}</span>
+                          </td>
+                          <td className="p-4 text-right font-bold">
+                            <p className="text-slate-800">₹{inv.amount.toLocaleString()}</p>
+                            <p className="text-slate-400 text-[10px]">₹{inv.taxAmount.toLocaleString()}</p>
+                          </td>
+                          <td className="p-4">
+                            {inv.status === 'FAILED' ? (
+                              <div className="space-y-1">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-red-100 text-red-700 border border-red-200">
+                                  <AlertTriangle size={10} />
+                                  FAILED
+                                </span>
+                                <p className="text-[10px] text-red-600 font-semibold max-w-[200px] truncate" title={inv.irnError}>
+                                  {inv.irnError}
+                                </p>
+                              </div>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-700 border border-blue-200">
+                                <RefreshCw size={10} className="animate-spin" />
+                                PENDING IRP
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-4 text-right space-x-2">
+                            <button
+                              onClick={() => openStatutoryQrModal(inv)}
+                              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] rounded-lg transition-colors flex items-center gap-1 inline-flex shadow-2xs"
+                              title="Generate and inspect compliant QR Code"
+                            >
+                              <QrCode size={12} className="text-blue-600" />
+                              <span>QR Code</span>
+                            </button>
+                            {inv.status === 'FAILED' ? (
+                              <button
+                                onClick={() => openRetryModal(inv)}
+                                className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white font-extrabold text-[11px] rounded-lg shadow-xs transition-colors flex items-center gap-1 inline-flex"
+                              >
+                                <Edit3 size={11} />
+                                <span>Resolve & Retry</span>
+                              </button>
+                            ) : (
+                              <button
+                                disabled={generatingId === inv.id}
+                                onClick={() => generateIrn(inv.id)}
+                                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-300 text-white font-extrabold text-[11px] rounded-lg shadow-xs transition-colors flex items-center gap-1 inline-flex"
+                              >
+                                {generatingId === inv.id ? (
+                                  <RefreshCw size={11} className="animate-spin" />
+                                ) : (
+                                  <Zap size={11} />
+                                )}
+                                <span>Generate IRN</span>
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <EInvoicePagination
+                  currentPage={consoleCurrentPage}
+                  totalItems={consoleTotalItems}
+                  pageSize={consolePageSize}
+                  onPageChange={setConsoleCurrentPage}
+                  onPageSizeChange={setConsolePageSize}
+                  itemLabel="pending actions"
+                  pageSizeOptions={[5, 10, 20, 50]}
+                />
               </div>
             )}
           </div>
@@ -712,20 +764,21 @@ export default function EInvoicePage() {
                 <p className="text-xs text-slate-400 mt-1">Try adjusting your filters or search keywords.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 text-slate-500 font-extrabold border-b border-slate-200">
-                      <th className="p-4 uppercase tracking-wider">Doc Number</th>
-                      <th className="p-4 uppercase tracking-wider">Party / GSTIN</th>
-                      <th className="p-4 uppercase tracking-wider">IRN Hash (64-Char)</th>
-                      <th className="p-4 uppercase tracking-wider text-right">Invoice Value</th>
-                      <th className="p-4 uppercase tracking-wider">Status</th>
-                      <th className="p-4 uppercase tracking-wider text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {registryInvoices.map(inv => (
+              <div className="overflow-hidden border border-slate-200 rounded-xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-500 font-extrabold border-b border-slate-200">
+                        <th className="p-4 uppercase tracking-wider">Doc Number</th>
+                        <th className="p-4 uppercase tracking-wider">Party / GSTIN</th>
+                        <th className="p-4 uppercase tracking-wider">IRN Hash (64-Char)</th>
+                        <th className="p-4 uppercase tracking-wider text-right">Invoice Value</th>
+                        <th className="p-4 uppercase tracking-wider">Status</th>
+                        <th className="p-4 uppercase tracking-wider text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {paginatedRegistryInvoices.map(inv => (
                       <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors">
                         <td className="p-4 font-bold">
                           <p className="text-slate-800">{inv.invoiceNumber}</p>
@@ -837,9 +890,20 @@ export default function EInvoicePage() {
                   </tbody>
                 </table>
               </div>
-            )}
-          </div>
-        )}
+
+              <EInvoicePagination
+                currentPage={registryCurrentPage}
+                totalItems={registryTotalItems}
+                pageSize={registryPageSize}
+                onPageChange={setRegistryCurrentPage}
+                onPageSizeChange={setRegistryPageSize}
+                itemLabel="e-invoices"
+                pageSizeOptions={[5, 10, 20, 50, 100]}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
         {/* TAB 3: BULK GENERATION */}
         {activeTab === 'BULK' && (

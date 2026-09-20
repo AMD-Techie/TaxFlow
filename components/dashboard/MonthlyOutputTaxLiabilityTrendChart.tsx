@@ -153,7 +153,7 @@ export const MonthlyOutputTaxLiabilityTrendChart: React.FC<MonthlyOutputTaxLiabi
   };
 
   return (
-    <div id="monthly-output-tax-liability-trend" className="card-corporate p-6 space-y-6">
+    <div id="monthly-output-tax-liability-trend" className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-6">
       {/* Header with Title and Control Toggles */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-slate-200/80 pb-4">
         <div>

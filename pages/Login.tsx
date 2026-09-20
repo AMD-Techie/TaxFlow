@@ -6,7 +6,7 @@ import { Building2, ArrowRight, Lock, Mail, ShieldCheck } from 'lucide-react';
 import { User } from '../types';
 
 interface LoginProps {
-  onLoginSuccess: () => void;
+  onLoginSuccess?: () => void;
 }
 
 const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
@@ -25,7 +25,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       const response = await performLogin(email, password);
       if (response.user) {
         dispatch(login(response.user));
-        onLoginSuccess();
+        onLoginSuccess?.();
       } else {
         setError('Invalid credentials');
       }

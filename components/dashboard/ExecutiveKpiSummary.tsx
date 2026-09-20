@@ -148,24 +148,24 @@ export const ExecutiveKpiSummary: React.FC<ExecutiveKpiSummaryProps> = ({
         </div>
       </div>
 
-      {/* KPI Cards Grid using card-corporate styling */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+      {/* KPI Cards Grid using standardized rounded-2xl corporate styling */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         
         {/* KPI CARD 1: Total Input Tax Credit (ITC) */}
         {(activeKpiFilter === 'ALL' || activeKpiFilter === 'ITC') && (
           <div 
             id="kpi-card-itc"
-            className="card-corporate p-5 relative overflow-hidden flex flex-col justify-between group"
+            className="bg-white p-5 lg:p-6 rounded-2xl border border-slate-200 shadow-xs hover:border-slate-300 transition-all flex flex-col justify-between group relative overflow-hidden min-h-[310px]"
           >
             {/* Top Corporate Accent Bar */}
-            <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-600"></div>
+            <div className="absolute top-0 inset-x-0 h-1 bg-emerald-600"></div>
 
             <div>
               {/* Header: Title & Badges */}
               <div className="flex justify-between items-start mb-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center shadow-xs">
-                    <ArrowDownRight size={22} className="text-emerald-700" />
+                  <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center shadow-xs shrink-0">
+                    <ArrowDownRight size={20} className="text-emerald-700" />
                   </div>
                   <div>
                     <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
@@ -185,7 +185,7 @@ export const ExecutiveKpiSummary: React.FC<ExecutiveKpiSummaryProps> = ({
               </div>
 
               {/* Main Metric Figure */}
-              <div className="my-2">
+              <div className="my-2 min-h-[62px] flex flex-col justify-center">
                 <div className="text-3xl font-black text-slate-900 font-mono tracking-tight">
                   ₹{totalItc.toLocaleString()}
                 </div>
@@ -198,15 +198,15 @@ export const ExecutiveKpiSummary: React.FC<ExecutiveKpiSummaryProps> = ({
             </div>
 
             {/* Sub-Indicator Breakdown */}
-            <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
-              <div className="grid grid-cols-2 gap-2 text-[11px]">
-                <div className="p-2 bg-slate-50 rounded-lg border border-slate-200/70">
+            <div className="mt-4 pt-3 border-t border-slate-100 space-y-2.5">
+              <div className="grid grid-cols-2 gap-2.5 text-[11px]">
+                <div className="p-2.5 bg-slate-50/80 rounded-xl border border-slate-200/70 min-h-[58px] flex flex-col justify-between">
                   <span className="text-slate-500 block text-[10px] uppercase font-bold">Auto-Matched in 2B</span>
                   <span className="font-bold font-mono text-emerald-800">
                     ₹{(Math.round(totalItc * 0.94)).toLocaleString()}
                   </span>
                 </div>
-                <div className="p-2 bg-slate-50 rounded-lg border border-slate-200/70">
+                <div className="p-2.5 bg-slate-50/80 rounded-xl border border-slate-200/70 min-h-[58px] flex flex-col justify-between">
                   <span className="text-slate-500 block text-[10px] uppercase font-bold">ITC at Risk (2B Diff)</span>
                   <span className={`font-bold font-mono ${itcAtRisk > 0 ? 'text-amber-700' : 'text-slate-700'}`}>
                     ₹{itcAtRisk > 0 ? itcAtRisk.toLocaleString() : '0'}
@@ -214,18 +214,25 @@ export const ExecutiveKpiSummary: React.FC<ExecutiveKpiSummaryProps> = ({
                 </div>
               </div>
 
-              {mismatchedInvoicesCount > 0 && (
-                <div className="text-[11px] text-amber-800 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200 flex items-center justify-between font-medium">
-                  <span className="flex items-center gap-1.5">
+              {mismatchedInvoicesCount > 0 ? (
+                <div className="text-[11px] text-amber-800 bg-amber-50 px-3 py-2 rounded-xl border border-amber-200 flex items-center justify-between font-medium min-h-[38px]">
+                  <span className="flex items-center gap-1.5 truncate pr-1">
                     <AlertTriangle size={13} className="text-amber-600 shrink-0" />
-                    {mismatchedInvoicesCount} invoices pending 2B reconciliation
+                    <span className="truncate">{mismatchedInvoicesCount} invoices pending 2B reconciliation</span>
                   </span>
                   <button 
                     onClick={() => onNavigate && onNavigate('/reconciliation')}
-                    className="font-bold text-amber-900 underline hover:text-amber-700 text-[10px]"
+                    className="font-bold text-amber-900 underline hover:text-amber-700 text-[10px] shrink-0"
                   >
                     Match Now
                   </button>
+                </div>
+              ) : (
+                <div className="text-[11px] text-emerald-800 bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-200 flex items-center justify-between font-medium min-h-[38px]">
+                  <span className="flex items-center gap-1.5">
+                    <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+                    <span>All Input Tax Credits 100% matched in GSTR-2B</span>
+                  </span>
                 </div>
               )}
             </div>
@@ -236,17 +243,17 @@ export const ExecutiveKpiSummary: React.FC<ExecutiveKpiSummaryProps> = ({
         {(activeKpiFilter === 'ALL' || activeKpiFilter === 'LIABILITY') && (
           <div 
             id="kpi-card-output-liability"
-            className="card-corporate p-5 relative overflow-hidden flex flex-col justify-between group"
+            className="bg-white p-5 lg:p-6 rounded-2xl border border-slate-200 shadow-xs hover:border-slate-300 transition-all flex flex-col justify-between group relative overflow-hidden min-h-[310px]"
           >
             {/* Top Corporate Accent Bar */}
-            <div className="absolute top-0 left-0 right-0 h-1 bg-amber-500"></div>
+            <div className="absolute top-0 inset-x-0 h-1 bg-amber-500"></div>
 
             <div>
               {/* Header: Title & Badges */}
               <div className="flex justify-between items-start mb-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center shadow-xs">
-                    <ArrowUpRight size={22} className="text-amber-700" />
+                  <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center shadow-xs shrink-0">
+                    <ArrowUpRight size={20} className="text-amber-700" />
                   </div>
                   <div>
                     <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
@@ -266,7 +273,7 @@ export const ExecutiveKpiSummary: React.FC<ExecutiveKpiSummaryProps> = ({
               </div>
 
               {/* Main Metric Figure */}
-              <div className="my-2">
+              <div className="my-2 min-h-[62px] flex flex-col justify-center">
                 <div className="text-3xl font-black text-slate-900 font-mono tracking-tight">
                   ₹{grossOutputLiability.toLocaleString()}
                 </div>
@@ -279,15 +286,15 @@ export const ExecutiveKpiSummary: React.FC<ExecutiveKpiSummaryProps> = ({
             </div>
 
             {/* Sub-Indicator Breakdown */}
-            <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
-              <div className="grid grid-cols-2 gap-2 text-[11px]">
-                <div className="p-2 bg-slate-50 rounded-lg border border-slate-200/70">
+            <div className="mt-4 pt-3 border-t border-slate-100 space-y-2.5">
+              <div className="grid grid-cols-2 gap-2.5 text-[11px]">
+                <div className="p-2.5 bg-slate-50/80 rounded-xl border border-slate-200/70 min-h-[58px] flex flex-col justify-between">
                   <span className="text-slate-500 block text-[10px] uppercase font-bold">Credit Ledger Offset</span>
                   <span className="font-bold font-mono text-slate-800">
                     ₹{Math.min(totalItc, grossOutputLiability).toLocaleString()}
                   </span>
                 </div>
-                <div className="p-2 bg-slate-50 rounded-lg border border-slate-200/70">
+                <div className="p-2.5 bg-slate-50/80 rounded-xl border border-slate-200/70 min-h-[58px] flex flex-col justify-between">
                   <span className="text-slate-500 block text-[10px] uppercase font-bold">Cash Ledger Demand</span>
                   <span className="font-bold font-mono text-amber-800">
                     ₹{netCashPayable.toLocaleString()}
@@ -296,16 +303,16 @@ export const ExecutiveKpiSummary: React.FC<ExecutiveKpiSummaryProps> = ({
               </div>
 
               {/* Status Indicator */}
-              <div className="text-[11px] text-slate-600 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200 flex items-center justify-between font-medium">
-                <span className="flex items-center gap-1.5">
+              <div className="text-[11px] text-slate-700 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200 flex items-center justify-between font-medium min-h-[38px]">
+                <span className="flex items-center gap-1.5 truncate pr-1">
                   <Sparkles size={13} className="text-amber-500 shrink-0" />
-                  Tax Settlement Ratio: {itcOffsetRatio}% covered by ITC
+                  <span className="truncate">Settlement Ratio: {itcOffsetRatio}% covered by ITC</span>
                 </span>
                 <button 
                   onClick={() => onNavigate && onNavigate('/returns')}
-                  className="font-bold text-blue-700 underline hover:text-blue-900 text-[10px]"
+                  className="font-bold text-blue-700 underline hover:text-blue-900 text-[10px] shrink-0"
                 >
-                  View GSTR-3B
+                  View 3B
                 </button>
               </div>
             </div>
@@ -316,21 +323,21 @@ export const ExecutiveKpiSummary: React.FC<ExecutiveKpiSummaryProps> = ({
         {(activeKpiFilter === 'ALL' || activeKpiFilter === 'FILINGS') && (
           <div 
             id="kpi-card-pending-filings"
-            className="card-corporate p-5 relative overflow-hidden flex flex-col justify-between group"
+            className="bg-white p-5 lg:p-6 rounded-2xl border border-slate-200 shadow-xs hover:border-slate-300 transition-all flex flex-col justify-between group relative overflow-hidden min-h-[310px]"
           >
             {/* Top Corporate Accent Bar */}
-            <div className={`absolute top-0 left-0 right-0 h-1 ${overdueCount > 0 ? 'bg-rose-600' : 'bg-blue-600'}`}></div>
+            <div className={`absolute top-0 inset-x-0 h-1 ${overdueCount > 0 ? 'bg-rose-600' : 'bg-blue-600'}`}></div>
 
             <div>
               {/* Header: Title & Badges */}
               <div className="flex justify-between items-start mb-3">
                 <div className="flex items-center gap-3">
-                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center shadow-xs border ${
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center shadow-xs border shrink-0 ${
                     overdueCount > 0 
                       ? 'bg-rose-50 text-rose-700 border-rose-200' 
                       : 'bg-blue-50 text-blue-700 border-blue-200'
                   }`}>
-                    <FileText size={22} className={overdueCount > 0 ? 'text-rose-700' : 'text-blue-700'} />
+                    <FileText size={20} className={overdueCount > 0 ? 'text-rose-700' : 'text-blue-700'} />
                   </div>
                   <div>
                     <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
@@ -349,7 +356,7 @@ export const ExecutiveKpiSummary: React.FC<ExecutiveKpiSummaryProps> = ({
               </div>
 
               {/* Main Metric Figure */}
-              <div className="my-2">
+              <div className="my-2 min-h-[62px] flex flex-col justify-center">
                 <div className="flex items-baseline gap-2">
                   <span className="text-3xl font-black text-slate-900 font-mono tracking-tight">
                     {pendingCount}
@@ -367,15 +374,15 @@ export const ExecutiveKpiSummary: React.FC<ExecutiveKpiSummaryProps> = ({
             </div>
 
             {/* Sub-Indicator Breakdown */}
-            <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
-              <div className="grid grid-cols-2 gap-2 text-[11px]">
-                <div className="p-2 bg-slate-50 rounded-lg border border-slate-200/70">
+            <div className="mt-4 pt-3 border-t border-slate-100 space-y-2.5">
+              <div className="grid grid-cols-2 gap-2.5 text-[11px]">
+                <div className="p-2.5 bg-slate-50/80 rounded-xl border border-slate-200/70 min-h-[58px] flex flex-col justify-between">
                   <span className="text-slate-500 block text-[10px] uppercase font-bold">Next Due Return</span>
                   <span className="font-bold text-slate-800 truncate block">
                     {nextFiling ? `${nextFiling.type} (${nextFiling.period})` : 'All Filings Up to Date'}
                   </span>
                 </div>
-                <div className="p-2 bg-slate-50 rounded-lg border border-slate-200/70">
+                <div className="p-2.5 bg-slate-50/80 rounded-xl border border-slate-200/70 min-h-[58px] flex flex-col justify-between">
                   <span className="text-slate-500 block text-[10px] uppercase font-bold">Filing Due Date</span>
                   <span className={`font-bold font-mono ${nextFiling?.status === 'OVERDUE' ? 'text-rose-600' : 'text-blue-800'}`}>
                     {nextFiling ? nextFiling.dueDate : 'No Active Due Date'}
@@ -384,16 +391,16 @@ export const ExecutiveKpiSummary: React.FC<ExecutiveKpiSummaryProps> = ({
               </div>
 
               {/* Action Banner */}
-              <div className="text-[11px] text-blue-900 bg-blue-50 px-2.5 py-1.5 rounded-lg border border-blue-200 flex items-center justify-between font-medium">
-                <span className="flex items-center gap-1.5">
+              <div className="text-[11px] text-blue-900 bg-blue-50 px-3 py-2 rounded-xl border border-blue-200 flex items-center justify-between font-medium min-h-[38px]">
+                <span className="flex items-center gap-1.5 truncate pr-1">
                   <Calendar size={13} className="text-blue-600 shrink-0" />
-                  {pendingCount > 0 ? `${pendingCount} returns ready for JSON generation` : 'Zero pending statutory returns'}
+                  <span className="truncate">{pendingCount > 0 ? `${pendingCount} returns ready for filing` : 'Zero pending statutory returns'}</span>
                 </span>
                 <button 
                   onClick={() => onNavigate && onNavigate('/returns')}
-                  className="font-bold text-blue-700 underline hover:text-blue-900 text-[10px] flex items-center gap-0.5"
+                  className="font-bold text-blue-700 underline hover:text-blue-900 text-[10px] flex items-center gap-0.5 shrink-0"
                 >
-                  File Returns <ChevronRight size={11} />
+                  File <ChevronRight size={11} />
                 </button>
               </div>
             </div>
@@ -403,8 +410,8 @@ export const ExecutiveKpiSummary: React.FC<ExecutiveKpiSummaryProps> = ({
       </div>
 
       {/* Corporate Mini Stat Strip: Secondary Summary Insights */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="px-4 py-3 bg-white rounded-xl border border-slate-200 shadow-subtle flex items-center justify-between">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between hover:border-slate-300 transition-colors">
           <div>
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Net Cash Outflow</span>
             <span className="text-sm font-black text-slate-900 font-mono">₹{netCashPayable.toLocaleString()}</span>
@@ -414,35 +421,35 @@ export const ExecutiveKpiSummary: React.FC<ExecutiveKpiSummaryProps> = ({
           </div>
         </div>
 
-        <div className="px-4 py-3 bg-white rounded-xl border border-slate-200 shadow-subtle flex items-center justify-between">
+        <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between hover:border-slate-300 transition-colors">
           <div>
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Eligible ITC Offset</span>
             <span className="text-sm font-black text-emerald-800 font-mono">{itcOffsetRatio}%</span>
           </div>
-          <div className="p-2 rounded-lg bg-emerald-50 text-emerald-700">
-            <Layers size={15} />
+          <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700">
+            <Layers size={16} />
           </div>
         </div>
 
-        <div className="px-4 py-3 bg-white rounded-xl border border-slate-200 shadow-subtle flex items-center justify-between">
+        <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between hover:border-slate-300 transition-colors">
           <div>
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Completed Filings</span>
             <span className="text-sm font-black text-blue-800 font-mono">{filedFilingsList.length} Returns</span>
           </div>
-          <div className="p-2 rounded-lg bg-blue-50 text-blue-700">
-            <CheckCircle2 size={15} />
+          <div className="p-2 rounded-xl bg-blue-50 text-blue-700">
+            <CheckCircle2 size={16} />
           </div>
         </div>
 
-        <div className="px-4 py-3 bg-white rounded-xl border border-slate-200 shadow-subtle flex items-center justify-between">
+        <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between hover:border-slate-300 transition-colors">
           <div>
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Statutory Audit Status</span>
-            <span className="text-sm font-black text-slate-900 flex items-center gap-1">
+            <span className="text-sm font-black text-slate-900 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Verified Clean
             </span>
           </div>
-          <div className="p-2 rounded-lg bg-emerald-50 text-emerald-700">
-            <ShieldCheck size={15} />
+          <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700">
+            <ShieldCheck size={16} />
           </div>
         </div>
       </div>

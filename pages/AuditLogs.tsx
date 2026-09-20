@@ -4,7 +4,6 @@ import { RootState } from '../store/store';
 import { AuditLogData, AuditChange } from '../types';
 import { 
   fetchAuditLogs, 
-  logAuditAction,
   generateSHA256Hash
 } from '../services/api';
 import { 
@@ -13,7 +12,6 @@ import {
   Filter, 
   CheckCircle2, 
   XCircle, 
-  ArrowRight, 
   Lock, 
   RefreshCw, 
   FileSpreadsheet, 
@@ -22,8 +20,6 @@ import {
   Info, 
   Calendar, 
   User, 
-  PlusCircle, 
-  Database, 
   Check, 
   Settings, 
   AlertTriangle,
@@ -60,12 +56,6 @@ const AuditLogs: React.FC = () => {
   // Regulatory export modal state
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
-  // Custom simulation event states
-  const [simAction, setSimAction] = useState('Authorized GSTR-1 Correction');
-  const [simModule, setSimModule] = useState<'INVOICE' | 'FILING' | 'AUTH' | 'COMPLIANCE' | 'SYSTEM' | 'SETTINGS'>('INVOICE');
-  const [simStatus, setSimStatus] = useState<'SUCCESS' | 'FAILURE'>('SUCCESS');
-  const [simDetails, setSimDetails] = useState('Overrode manual tax mismatch for INV-2024-1049');
-
   // Load audit logs
   const loadLogs = async () => {
     setLoading(true);
@@ -84,40 +74,6 @@ const AuditLogs: React.FC = () => {
   useEffect(() => {
     loadLogs();
   }, [user?.currentTenantId]);
-
-  // Handle Simulation Addition
-  const handleSimulateLog = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!simAction.trim()) return;
-
-    setLoading(true);
-    try {
-      // Log custom change structure if appropriate
-      let changes: AuditChange[] | undefined = undefined;
-      if (simModule === 'INVOICE') {
-        changes = [
-          { field: 'taxRate', oldValue: 12, newValue: 18 },
-          { field: 'taxAmount', oldValue: '₹14,400', newValue: '₹21,600' }
-        ];
-      } else if (simModule === 'SETTINGS') {
-        changes = [
-          { field: 'mfaRequired', oldValue: 'false', newValue: 'true' }
-        ];
-      }
-
-      await logAuditAction(simAction, simModule, simDetails, changes, simStatus);
-      await loadLogs();
-      
-      // Clear simulation detail or set to default
-      setSimDetails('');
-      setSimAction('Updated System Security Constraints');
-      setSimModule('SETTINGS');
-    } catch (err) {
-      console.error('Failed to simulate action:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Cryptographic Integrity verification function
   const runIntegrityVerification = async () => {
@@ -437,11 +393,8 @@ const AuditLogs: React.FC = () => {
         </div>
       )}
 
-      {/* Layout Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        {/* LEFT COLUMN: Controls + Audit Logs List (9 Cols) */}
-        <div className="lg:col-span-8 space-y-6">
+      {/* Main Audit Trail Section */}
+      <div className="space-y-6">
           
           {/* Filters card */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm space-y-4">
@@ -786,156 +739,6 @@ const AuditLogs: React.FC = () => {
               </div>
             )}
           </div>
-
-        </div>
-
-        {/* RIGHT COLUMN: Ledger Info & Log Simulator Tools (4 Cols) */}
-        <div className="lg:col-span-4 space-y-6">
-          
-          {/* Cryptographic Ledger Block diagram */}
-          <div className="bg-slate-900 text-white p-6 rounded-3xl border border-slate-800 shadow-xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-8 opacity-5">
-              <Database size={120} />
-            </div>
-            
-            <h3 className="text-lg font-extrabold tracking-tight flex items-center gap-2">
-              <Lock size={18} className="text-blue-400" />
-              Cryptographic Chaining
-            </h3>
-            <p className="text-slate-400 text-xs mt-1.5 leading-relaxed">
-              Every system event generates a unique block linked to the SHA-256 signature hash of the preceding event, creating a tamper-evident chain.
-            </p>
-
-            {/* Block graphics */}
-            <div className="mt-6 space-y-4 relative">
-              {/* Connector line */}
-              <div className="absolute left-6 top-3 bottom-3 w-0.5 bg-dashed bg-blue-500/20"></div>
-
-              {/* Node 1 */}
-              <div className="flex items-start gap-4 relative">
-                <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0 z-10 backdrop-blur-md">
-                  <Database size={16} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-black text-slate-300 uppercase tracking-wider">Latest Ledger Node</div>
-                  <div className="text-[10px] font-mono text-blue-400 truncate mt-0.5">
-                    {logs[0]?.hash || 'loading_hash_here'}
-                  </div>
-                  <p className="text-[10px] text-slate-400 truncate mt-1">Prev: {logs[0]?.previousHash.substring(0, 16)}...</p>
-                </div>
-              </div>
-
-              {/* Link Arrow */}
-              <div className="pl-5 text-blue-500/40">
-                <ArrowRight size={14} className="rotate-90 ml-1.5" />
-              </div>
-
-              {/* Node 2 */}
-              <div className="flex items-start gap-4 relative">
-                <div className="w-12 h-12 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center text-slate-400 shrink-0 z-10">
-                  <Database size={16} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-black text-slate-300 uppercase tracking-wider">Predecessor Node</div>
-                  <div className="text-[10px] font-mono text-slate-400 truncate mt-0.5">
-                    {logs[1]?.hash || '00000000000000000000000000000000'}
-                  </div>
-                  <p className="text-[10px] text-slate-500 truncate mt-1">Prev: {logs[1]?.previousHash.substring(0, 16)}...</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
-              <span className="flex items-center gap-1.5">
-                <CheckCircle2 size={13} className="text-emerald-500" />
-                Ledger online
-              </span>
-              <span className="font-mono text-[10px] text-slate-500">
-                v1.2 // SHA-256
-              </span>
-            </div>
-          </div>
-
-          {/* Compliance Log Simulator (Dev Controls) */}
-          <div className="bg-white p-6 rounded-3xl border border-slate-200/60 shadow-sm">
-            <h3 className="text-lg font-black text-slate-800 tracking-tight flex items-center gap-2">
-              <PlusCircle size={18} className="text-emerald-500" />
-              Ledger Action Simulator
-            </h3>
-            <p className="text-slate-500 text-xs mt-1 leading-relaxed">
-              Compliance testing tool. Select and commit an operation to verify instantaneous cryptographic logging on this workspace.
-            </p>
-
-            <form onSubmit={handleSimulateLog} className="mt-5 space-y-4">
-              
-              {/* Event input */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Action Name</label>
-                <input
-                  type="text"
-                  required
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all"
-                  value={simAction}
-                  onChange={(e) => setSimAction(e.target.value)}
-                  placeholder="e.g. Authorized GST Refund Claim"
-                />
-              </div>
-
-              {/* Module & Status Selector */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Module</label>
-                  <select
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2 py-2 text-xs font-bold text-slate-700 outline-none cursor-pointer"
-                    value={simModule}
-                    onChange={(e) => setSimModule(e.target.value as any)}
-                  >
-                    <option value="INVOICE">INVOICE</option>
-                    <option value="FILING">FILING</option>
-                    <option value="COMPLIANCE">COMPLIANCE</option>
-                    <option value="AUTH">AUTH</option>
-                    <option value="SETTINGS">SETTINGS</option>
-                    <option value="SYSTEM">SYSTEM</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Status</label>
-                  <select
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2 py-2 text-xs font-bold text-slate-700 outline-none cursor-pointer"
-                    value={simStatus}
-                    onChange={(e) => setSimStatus(e.target.value as any)}
-                  >
-                    <option value="SUCCESS">SUCCESS</option>
-                    <option value="FAILURE">FAILURE</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Details */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Details / Meta Information</label>
-                <textarea
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all resize-none h-16"
-                  value={simDetails}
-                  onChange={(e) => setSimDetails(e.target.value)}
-                  placeholder="e.g. Authorized refund of ₹1,24,000 for export invoice batch 2024-C"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-2.5 bg-slate-950 hover:bg-slate-800 disabled:bg-slate-100 text-white disabled:text-slate-400 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 mt-2 shadow-sm"
-              >
-                <PlusCircle size={14} />
-                Commit Sim-Action to Ledger
-              </button>
-
-            </form>
-          </div>
-
-        </div>
 
       </div>
 

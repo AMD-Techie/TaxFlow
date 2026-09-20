@@ -14,6 +14,7 @@ import {
   resetPartyMasterToSeed, VENDOR_CATEGORY_OPTIONS, CREDIT_TERMS_LABELS, MSME_STATUS_LABELS,
   extractPanFromGstin, extractStateCodeFromGstin
 } from '../services/partyMasterService';
+import { PartyMasterPagination } from './PartyMasterPagination';
 
 export const PartyMasterModule: React.FC = () => {
   // Navigation tab
@@ -22,6 +23,12 @@ export const PartyMasterModule: React.FC = () => {
   // Customer & Vendor Lists
   const [customers, setCustomers] = useState<CustomerMaster[]>([]);
   const [vendors, setVendors] = useState<VendorMaster[]>([]);
+
+  // Pagination States
+  const [customerPage, setCustomerPage] = useState(1);
+  const [customerPageSize, setCustomerPageSize] = useState(10);
+  const [vendorPage, setVendorPage] = useState(1);
+  const [vendorPageSize, setVendorPageSize] = useState(10);
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -152,7 +159,19 @@ export const PartyMasterModule: React.FC = () => {
     setMaxCreditLimit('');
     setSortField('NAME');
     setSortOrder('ASC');
+    setCustomerPage(1);
+    setVendorPage(1);
   }, [activeTab]);
+
+  // Reset pagination on filter or query change
+  useEffect(() => {
+    setCustomerPage(1);
+    setVendorPage(1);
+  }, [
+    searchQuery, stateFilter, creditFilter, categoryFilter, msmeFilter,
+    rcmFilter, compositionFilter, cityFilter, statusFilter, gstinStatusFilter,
+    vendorCategoryFilter, minCreditLimit, maxCreditLimit, partySortConfigs
+  ]);
 
   const handleResetFilters = () => {
     setSearchQuery('');
@@ -170,6 +189,8 @@ export const PartyMasterModule: React.FC = () => {
     setMaxCreditLimit('');
     setSortField('NAME');
     setSortOrder('ASC');
+    setCustomerPage(1);
+    setVendorPage(1);
     showToast('Filters cleared successfully');
   };
 
@@ -752,6 +773,17 @@ export const PartyMasterModule: React.FC = () => {
     return sortableItems;
   }, [filteredVendors, partySortConfigs]);
 
+  // Paginated Slices for Customers & Vendors
+  const paginatedCustomers = useMemo(() => {
+    const start = (customerPage - 1) * customerPageSize;
+    return sortedCustomers.slice(start, start + customerPageSize);
+  }, [sortedCustomers, customerPage, customerPageSize]);
+
+  const paginatedVendors = useMemo(() => {
+    const start = (vendorPage - 1) * vendorPageSize;
+    return sortedVendors.slice(start, start + vendorPageSize);
+  }, [sortedVendors, vendorPage, vendorPageSize]);
+
   // Calculate Metrics
   const totalCreditLimit = customers.reduce((acc, c) => acc + (c.creditLimitINR || 0), 0);
   const msmeVendorCount = vendors.filter(v => v.msmeStatus !== 'NON_MSME').length;
@@ -1105,33 +1137,33 @@ export const PartyMasterModule: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* HEADER BANNER WITH SUMMARY METRICS */}
-      <div className="p-6 bg-slate-900 text-white rounded-3xl border border-slate-800 shadow-xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+      {/* HEADER BANNER WITH SUMMARY METRICS (Statutory Company Information White Theme) */}
+      <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6 animate-in fade-in">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 border-b border-slate-100 pb-5">
           <div className="flex items-start gap-4">
-            <div className="p-3.5 bg-blue-600/20 border border-blue-500/30 text-blue-400 rounded-2xl flex items-center justify-center shrink-0">
-              <Building2 size={32} />
+            <div className="p-3 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center shrink-0">
+              <Building2 size={24} />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-2xl font-black text-white tracking-tight">Customer &amp; Vendor Master</h2>
-                <span className="px-2.5 py-0.5 bg-blue-500/20 text-blue-300 border border-blue-500/30 text-[10px] font-mono font-bold rounded-full uppercase">
+                <h2 className="text-xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
+                  Customer &amp; Vendor Master
+                </h2>
+                <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-100 text-[10px] font-mono font-bold rounded-full uppercase">
                   GST Compliance Directory
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+              <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
                 Centralized registry for Customer &amp; Vendor entities. Tracks 15-digit GSTINs, PAN structures, Reverse Charge (RCM) applicability, Composition Scheme status, MSME Section 43B(h) classifications, and Credit Terms.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <button
               type="button"
               onClick={handleResetData}
-              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold border border-slate-700 transition-all flex items-center gap-1.5"
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold border border-slate-200 transition-all flex items-center gap-1.5"
               title="Reset sample party data"
             >
               <RefreshCw size={14} /> Reset Data
@@ -1139,7 +1171,7 @@ export const PartyMasterModule: React.FC = () => {
             <button
               type="button"
               onClick={() => handleExportCsv(activeTab === 'VENDORS' ? 'VENDORS' : 'CUSTOMERS')}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md transition-all flex items-center gap-1.5"
+              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5"
             >
               <Download size={15} /> Export CSV
             </button>
@@ -1147,80 +1179,80 @@ export const PartyMasterModule: React.FC = () => {
         </div>
 
         {/* METRICS CARDS */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-4 border-t border-slate-800">
-          <div className="p-3 bg-slate-800/50 rounded-2xl border border-slate-700/60">
-            <p className="text-[10px] text-slate-400 font-bold uppercase">Active Customers</p>
-            <p className="text-xl font-black text-white font-mono mt-0.5">{customers.length}</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">Credit Cap: ₹{(totalCreditLimit/100000).toFixed(1)} Lakhs</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/80 hover:border-slate-300 transition-all">
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Active Customers</p>
+            <p className="text-2xl font-black text-slate-900 font-mono mt-1">{customers.length}</p>
+            <p className="text-xs text-slate-500 mt-0.5 font-medium">Credit Cap: ₹{(totalCreditLimit/100000).toFixed(1)} Lakhs</p>
           </div>
 
-          <div className="p-3 bg-slate-800/50 rounded-2xl border border-slate-700/60">
-            <p className="text-[10px] text-slate-400 font-bold uppercase">Active Vendors</p>
-            <p className="text-xl font-black text-white font-mono mt-0.5">{vendors.length}</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">{rcmVendorCount} RCM / {compVendorCount} Composition</p>
+          <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/80 hover:border-slate-300 transition-all">
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Active Vendors</p>
+            <p className="text-2xl font-black text-slate-900 font-mono mt-1">{vendors.length}</p>
+            <p className="text-xs text-slate-500 mt-0.5 font-medium">{rcmVendorCount} RCM / {compVendorCount} Composition</p>
           </div>
 
-          <div className="p-3 bg-slate-800/50 rounded-2xl border border-slate-700/60">
-            <p className="text-[10px] text-slate-400 font-bold uppercase">MSME Vendors (Sec 43B)</p>
-            <p className="text-xl font-black text-emerald-400 font-mono mt-0.5">{msmeVendorCount}</p>
-            <p className="text-[10px] text-emerald-300 mt-0.5">Micro &amp; Small Entities</p>
+          <div className="p-4 bg-emerald-50/60 rounded-2xl border border-emerald-200/80 hover:border-emerald-300 transition-all">
+            <p className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider">MSME Vendors (Sec 43B)</p>
+            <p className="text-2xl font-black text-emerald-700 font-mono mt-1">{msmeVendorCount}</p>
+            <p className="text-xs text-emerald-600 mt-0.5 font-medium">Micro &amp; Small Entities</p>
           </div>
 
-          <div className="p-3 bg-slate-800/50 rounded-2xl border border-slate-700/60">
-            <p className="text-[10px] text-slate-400 font-bold uppercase">RCM Registered Vendors</p>
-            <p className="text-xl font-black text-purple-400 font-mono mt-0.5">{rcmVendorCount}</p>
-            <p className="text-[10px] text-purple-300 mt-0.5">GTA Freight &amp; Advocates</p>
+          <div className="p-4 bg-purple-50/60 rounded-2xl border border-purple-200/80 hover:border-purple-300 transition-all">
+            <p className="text-[10px] text-purple-700 font-bold uppercase tracking-wider">RCM Registered Vendors</p>
+            <p className="text-2xl font-black text-purple-700 font-mono mt-1">{rcmVendorCount}</p>
+            <p className="text-xs text-purple-600 mt-0.5 font-medium">GTA Freight &amp; Advocates</p>
           </div>
         </div>
 
         {/* NAVIGATION TABS */}
-        <div className="flex flex-wrap gap-2 mt-6">
+        <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
           <button
             type="button"
             onClick={() => setActiveTab('CUSTOMERS')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
               activeTab === 'CUSTOMERS'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-600'
+                : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
-            <Users size={15} /> Customer Master ({customers.length})
+            <Users size={15} className={activeTab === 'CUSTOMERS' ? 'text-white' : 'text-slate-500'} /> Customer Master ({customers.length})
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('VENDORS')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
               activeTab === 'VENDORS'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-600'
+                : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
-            <Building2 size={15} /> Vendor Master ({vendors.length})
+            <Building2 size={15} className={activeTab === 'VENDORS' ? 'text-white' : 'text-slate-500'} /> Vendor Master ({vendors.length})
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('MSME_RCM_DIRECTORY')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
               activeTab === 'MSME_RCM_DIRECTORY'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-600'
+                : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
-            <ShieldAlert size={15} /> MSME &amp; RCM Compliance Directory
+            <ShieldAlert size={15} className={activeTab === 'MSME_RCM_DIRECTORY' ? 'text-white' : 'text-slate-500'} /> MSME &amp; RCM Compliance Directory
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('BULK_IMPORT')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
               activeTab === 'BULK_IMPORT'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-600'
+                : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
-            <Upload size={15} /> Bulk Data Import
+            <Upload size={15} className={activeTab === 'BULK_IMPORT' ? 'text-white' : 'text-slate-500'} /> Bulk Data Import
           </button>
         </div>
       </div>
@@ -1256,7 +1288,7 @@ export const PartyMasterModule: React.FC = () => {
                         </td>
                       </tr>
                     ) : (
-                      sortedCustomers.map(cust => (
+                      paginatedCustomers.map(cust => (
                         <tr key={cust.id} className="hover:bg-slate-50/50 transition-colors">
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className="font-mono text-xs font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
@@ -1322,7 +1354,7 @@ export const PartyMasterModule: React.FC = () => {
                   <p className="text-xs mt-1">Try adjusting your search query or add a new customer.</p>
                 </div>
               ) : (
-                sortedCustomers.map(cust => (
+                paginatedCustomers.map(cust => (
                   <div key={cust.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-blue-300 transition-all space-y-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -1405,6 +1437,19 @@ export const PartyMasterModule: React.FC = () => {
               )}
             </div>
           )}
+
+          {/* CUSTOMER PAGINATION */}
+          <PartyMasterPagination
+            currentPage={customerPage}
+            totalItems={sortedCustomers.length}
+            pageSize={customerPageSize}
+            onPageChange={setCustomerPage}
+            onPageSizeChange={(newSize) => {
+              setCustomerPageSize(newSize);
+              setCustomerPage(1);
+            }}
+            itemLabel="customers"
+          />
         </div>
       )}
 
@@ -1439,7 +1484,7 @@ export const PartyMasterModule: React.FC = () => {
                         </td>
                       </tr>
                     ) : (
-                      sortedVendors.map(vend => (
+                      paginatedVendors.map(vend => (
                         <tr key={vend.id} className="hover:bg-slate-50/50 transition-colors">
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className="font-mono text-xs font-black text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
@@ -1515,7 +1560,7 @@ export const PartyMasterModule: React.FC = () => {
                   <p className="text-xs mt-1">Try adjusting your search query or add a new vendor.</p>
                 </div>
               ) : (
-                sortedVendors.map(vend => (
+                paginatedVendors.map(vend => (
                   <div key={vend.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-blue-300 transition-all space-y-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -1616,6 +1661,19 @@ export const PartyMasterModule: React.FC = () => {
               )}
             </div>
           )}
+
+          {/* VENDOR PAGINATION */}
+          <PartyMasterPagination
+            currentPage={vendorPage}
+            totalItems={sortedVendors.length}
+            pageSize={vendorPageSize}
+            onPageChange={setVendorPage}
+            onPageSizeChange={(newSize) => {
+              setVendorPageSize(newSize);
+              setVendorPage(1);
+            }}
+            itemLabel="vendors"
+          />
         </div>
       )}
 

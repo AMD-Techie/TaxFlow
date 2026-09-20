@@ -28,6 +28,9 @@ export type GstPolicyUpdate = RegulatoryEvent & {
   notifications?: OperativeGovernmentNotification[];
   sourceTitle?: string;
   sourceUrl?: string;
+  officialSourceTitle?: string;
+  officialSourceUrl?: string;
+  officialPdfUrl?: string;
 };
 
 export interface GroundingSource {
@@ -251,40 +254,40 @@ export const GstPolicyUpdatesWidget: React.FC = () => {
     return (
       <div 
         onClick={() => setIsCollapsed(false)}
-        className="bg-slate-900 rounded-2xl border border-slate-800 shadow-md p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 cursor-pointer hover:bg-slate-800/90 transition-all duration-300 group"
+        className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 cursor-pointer hover:border-slate-300 transition-all duration-200 group"
       >
         <div className="flex items-center gap-3.5 w-full sm:w-auto">
-          <div className="p-2.5 bg-blue-500/10 rounded-xl border border-blue-400/20 text-blue-400 group-hover:scale-105 transition-transform shrink-0">
+          <div className="w-11 h-11 bg-blue-50 rounded-xl border border-blue-200 text-blue-600 flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
             <Newspaper size={20} />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-0.5">
-              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-blue-300 bg-blue-500/10 border border-blue-400/20 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                <Landmark size={10} className="text-blue-400" />
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-blue-700 bg-blue-50 border border-blue-200/80 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                <Landmark size={10} className="text-blue-600" />
                 <span>CBIC & GST Council</span>
               </span>
-              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-300 bg-emerald-500/10 border border-emerald-400/20 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                <ShieldCheck size={10} className="text-emerald-400" />
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                <ShieldCheck size={10} className="text-emerald-600" />
                 <span>Audit Verified</span>
               </span>
               {updates.length > 0 && (
-                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-blue-200 bg-blue-600/30 px-2.5 py-0.5 rounded-full">
+                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-700 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full">
                   {updates.length} Events Active
                 </span>
               )}
             </div>
-            <h3 className="text-sm sm:text-base font-bold text-white leading-snug">
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors leading-snug">
               Official Regulatory Events & CBIC Policy Stream
             </h3>
-            <p className="text-[11px] text-slate-400 truncate max-w-[280px] sm:max-w-md md:max-w-xl">
+            <p className="text-[11px] text-slate-500 truncate max-w-[280px] sm:max-w-md md:max-w-xl">
               Strict separation of GST Council non-binding recommendations from legally operative CBIC notifications.
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto justify-end">
-          <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 bg-slate-800/80 border border-slate-700/60 rounded-lg text-[10px] text-slate-300 font-mono">
-            <span className={`w-1.5 h-1.5 rounded-full ${autoRefreshEnabled ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+          <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[10px] text-slate-600 font-mono">
+            <span className={`w-1.5 h-1.5 rounded-full ${autoRefreshEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
             <span>{autoRefreshEnabled ? `Syncing in ${secondsUntilNextSync}s` : 'Paused'}</span>
           </div>
 
@@ -293,10 +296,10 @@ export const GstPolicyUpdatesWidget: React.FC = () => {
               e.stopPropagation();
               setIsCollapsed(false);
             }}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-xs shrink-0"
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-xs shrink-0"
           >
             <span>View Stream ({updates.length})</span>
-            <ChevronDown size={14} className="text-blue-200 animate-bounce" />
+            <ChevronDown size={14} className="text-blue-100 animate-bounce" />
           </button>
         </div>
       </div>
@@ -304,48 +307,52 @@ export const GstPolicyUpdatesWidget: React.FC = () => {
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
       {/* Top Header Banner */}
-      <div className="p-5 sm:p-6 bg-slate-900 text-white flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 text-[11px] font-mono font-bold border border-blue-400/30 uppercase tracking-wider flex items-center gap-1">
-              <Landmark size={12} className="text-blue-400" />
-              <span>Regulatory Events Model</span>
-            </span>
-            {groundedWithSearch && (
-              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[11px] font-mono font-bold border border-emerald-400/30 uppercase tracking-wider flex items-center gap-1">
-                <Sparkles size={11} className="text-emerald-400" />
-                <span>Google Grounded</span>
-              </span>
-            )}
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[11px] font-mono font-bold border border-emerald-400/30 uppercase tracking-wider flex items-center gap-1">
-              <ShieldCheck size={11} className="text-emerald-400" />
-              <span>Audit Engine Verified</span>
-            </span>
+      <div className="p-5 sm:p-6 bg-white border-b border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-start gap-3.5">
+          <div className="w-11 h-11 bg-blue-50 text-blue-600 rounded-xl border border-blue-200 shadow-xs flex items-center justify-center shrink-0">
+            <Newspaper size={20} />
           </div>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-            <Newspaper className="text-blue-400" size={24} />
-            <span>Official Regulatory Events & CBIC Policy Stream</span>
-          </h2>
-          <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
-            Strict separation of GST Council non-binding recommendations from legally operative CBIC notifications with direct official PDF document citations.
-          </p>
+          <div>
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[11px] font-mono font-bold border border-blue-200 uppercase tracking-wider flex items-center gap-1">
+                <Landmark size={12} className="text-blue-600" />
+                <span>Regulatory Events Model</span>
+              </span>
+              {groundedWithSearch && (
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-mono font-bold border border-emerald-200 uppercase tracking-wider flex items-center gap-1">
+                  <Sparkles size={11} className="text-emerald-600" />
+                  <span>Google Grounded</span>
+                </span>
+              )}
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-mono font-bold border border-emerald-200 uppercase tracking-wider flex items-center gap-1">
+                <ShieldCheck size={11} className="text-emerald-600" />
+                <span>Audit Engine Verified</span>
+              </span>
+            </div>
+            <h2 className="text-xl font-bold tracking-tight text-slate-900">
+              Official Regulatory Events & CBIC Policy Stream
+            </h2>
+            <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
+              Strict separation of GST Council non-binding recommendations from legally operative CBIC notifications with direct official PDF document citations.
+            </p>
+          </div>
         </div>
 
         {/* Action Controls & Stream Sync Indicator */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
-          <div className="bg-slate-800/90 border border-slate-700/80 px-3 py-1.5 rounded-xl flex items-center gap-2 text-xs">
+          <div className="bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl flex items-center gap-2 text-xs">
             <div className="flex items-center gap-1.5">
-              <span className={`w-2 h-2 rounded-full ${autoRefreshEnabled ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-              <span className="font-mono text-slate-300 text-[11px]">
+              <span className={`w-2 h-2 rounded-full ${autoRefreshEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+              <span className="font-mono text-slate-600 text-[11px]">
                 {autoRefreshEnabled ? `Syncing in ${secondsUntilNextSync}s` : 'Stream Paused'}
               </span>
             </div>
 
             <button
               onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
-              className="ml-1 text-[10px] font-bold text-slate-400 hover:text-white underline decoration-slate-500"
+              className="ml-1 text-[10px] font-bold text-slate-500 hover:text-slate-900 underline decoration-slate-300"
             >
               {autoRefreshEnabled ? 'Pause' : 'Resume'}
             </button>
@@ -353,17 +360,17 @@ export const GstPolicyUpdatesWidget: React.FC = () => {
 
           <button
             onClick={() => setValidationModalOpen(true)}
-            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs"
+            className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs"
             title="Test Regulatory Intelligence Engine Middleware Validation"
           >
-            <ShieldCheck size={14} className="text-emerald-200" />
+            <ShieldCheck size={14} className="text-emerald-600" />
             <span>Test Intelligence Engine</span>
           </button>
 
           <button
             onClick={() => fetchPolicyUpdates(true)}
             disabled={refreshing}
-            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50"
+            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50"
           >
             <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
             <span>{refreshing ? 'Auditing...' : 'Fetch Live Stream'}</span>
@@ -371,10 +378,10 @@ export const GstPolicyUpdatesWidget: React.FC = () => {
 
           <button
             onClick={() => setIsCollapsed(true)}
-            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs border border-slate-700"
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs border border-slate-200"
             title="Collapse Stream"
           >
-            <ChevronUp size={14} className="text-slate-400" />
+            <ChevronUp size={14} className="text-slate-500" />
             <span>Collapse</span>
           </button>
         </div>
@@ -398,13 +405,13 @@ export const GstPolicyUpdatesWidget: React.FC = () => {
                 onClick={() => setSelectedCategory(cat.id)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 flex items-center gap-1.5 ${
                   selectedCategory === cat.id
-                    ? 'bg-slate-900 text-white shadow-xs'
+                    ? 'bg-blue-600 text-white shadow-xs'
                     : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
                 <span>{cat.label}</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-                  selectedCategory === cat.id ? 'bg-slate-700 text-slate-200' : 'bg-slate-100 text-slate-500'
+                  selectedCategory === cat.id ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-500'
                 }`}>
                   {count}
                 </span>

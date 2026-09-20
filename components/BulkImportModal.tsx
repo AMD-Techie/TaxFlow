@@ -463,12 +463,14 @@ const BulkImportModal: React.FC<BulkImportModalProps> = ({
 
       setImportResult({
         id: `recon-log-${Date.now()}`,
+        tenantId: 'default-tenant',
         fileName: file?.name || 'Bank Statement',
-        uploadDate: new Date().toISOString(),
+        timestamp: new Date().toISOString(),
         totalCount: reconMatchList.length,
         successCount: itemsToApply.length,
         failureCount: reconMatchList.length - itemsToApply.length,
-        status: 'SUCCESS'
+        status: 'COMPLETED',
+        processedFileUrl: ''
       });
       setStep('SUCCESS');
     } catch (err) {

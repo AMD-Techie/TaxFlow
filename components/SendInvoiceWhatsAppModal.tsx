@@ -16,10 +16,10 @@ export const SendInvoiceWhatsAppModal: React.FC<SendInvoiceWhatsAppModalProps> =
   onClose,
   onSuccess
 }) => {
-  const [phone, setPhone] = useState(invoice.billingAddress?.phone || '+919876543210');
+  const [phone, setPhone] = useState((invoice as any).billingAddress?.phone || (invoice as any).phone || '+919876543210');
   const [notificationType, setNotificationType] = useState<'INVOICE_ISSUED' | 'PAYMENT_REMINDER' | 'PAYMENT_OVERDUE' | 'PAYMENT_RECEIVED' | 'E_INVOICE_GENERATED'>(
     invoice.status === 'PAID' ? 'PAYMENT_RECEIVED' :
-    invoice.status === 'OVERDUE' ? 'PAYMENT_OVERDUE' :
+    (invoice.status as string) === 'OVERDUE' ? 'PAYMENT_OVERDUE' :
     invoice.status === 'DRAFT' || invoice.status === 'PENDING' ? 'INVOICE_ISSUED' : 'PAYMENT_REMINDER'
   );
   const [customNote, setCustomNote] = useState('');
@@ -29,7 +29,7 @@ export const SendInvoiceWhatsAppModal: React.FC<SendInvoiceWhatsAppModalProps> =
 
   if (!isOpen) return null;
 
-  const isOverdue = invoice.status === 'OVERDUE' || (invoice.dueDate && new Date(invoice.dueDate) < new Date() && invoice.status !== 'PAID');
+  const isOverdue = (invoice.status as string) === 'OVERDUE' || (invoice.dueDate && new Date(invoice.dueDate) < new Date() && invoice.status !== 'PAID');
   const daysOverdue = isOverdue && invoice.dueDate 
     ? Math.max(1, Math.floor((new Date().getTime() - new Date(invoice.dueDate).getTime()) / (1000 * 60 * 60 * 24)))
     : 0;
@@ -161,7 +161,7 @@ export const SendInvoiceWhatsAppModal: React.FC<SendInvoiceWhatsAppModalProps> =
               </div>
               <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
                 invoice.status === 'PAID' ? 'bg-emerald-100 text-emerald-800' :
-                invoice.status === 'OVERDUE' ? 'bg-rose-100 text-rose-800' :
+                (invoice.status as string) === 'OVERDUE' ? 'bg-rose-100 text-rose-800' :
                 'bg-amber-100 text-amber-800'
               }`}>
                 Status: {invoice.status}

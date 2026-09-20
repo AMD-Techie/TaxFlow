@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Calculator, IndianRupee, Info, TrendingUp, ArrowRight, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkspaceSync } from './WorkspaceSyncContext';
@@ -17,30 +17,18 @@ const QuickTaxEstimator: React.FC = () => {
     return savedEstimator.taxRate !== undefined ? savedEstimator.taxRate : 18;
   });
   
-  const [forecast, setForecast] = useState({
-    outputTax: 0,
-    inputTaxCredit: 0,
-    netLiability: 0,
-    margin: 0
-  });
-
-  // Track state changes to register as a draft for cloud auto-sync
-  useEffect(() => {
-    registerDraftField('quick-tax-estimator', { revenue, expenses, taxRate });
-  }, [revenue, expenses, taxRate, registerDraftField]);
-
-  useEffect(() => {
+  const forecast = useMemo(() => {
     const outputTax = revenue * (taxRate / 100);
     const inputTaxCredit = expenses * (taxRate / 100); // Simplified assumption that expenses have same tax rate
     const netLiability = Math.max(0, outputTax - inputTaxCredit);
     const margin = revenue - expenses - netLiability;
     
-    setForecast({
+    return {
       outputTax,
       inputTaxCredit,
       netLiability,
       margin
-    });
+    };
   }, [revenue, expenses, taxRate]);
 
   const taxRates = [5, 12, 18, 28];

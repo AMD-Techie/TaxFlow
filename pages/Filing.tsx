@@ -16,17 +16,19 @@ import {
   Check, ChevronRight, AlertCircle, Loader2, FileText, Calendar, 
   Download, UploadCloud, RefreshCw, FileCheck, Shield, ChevronLeft, Eye, Lock,
   CalendarDays, ArrowUpRight, Bell, Laptop, History, GitCompare, GitCommit, GitBranch,
-  Edit, Save, RotateCcw, PlusCircle, X, ChevronDown, CheckCircle2
+  Edit, Save, RotateCcw, PlusCircle, X, ChevronDown, CheckCircle2, Sparkles, ShieldCheck,
+  MessageSquare
 } from 'lucide-react';
 import { FilingRecord, ReturnFormType, FilingVersion, FilingDataSummary } from '../types';
 import FilingCalendar from '../components/FilingCalendar';
-import HierarchicalApprovalModule from '../components/HierarchicalApprovalModule';
 import { Gstr1Wizard } from '../components/Gstr1Wizard';
 import { OtherReturnsWizard } from '../components/OtherReturnsWizard';
 import { Gstr9Wizard } from '../components/Gstr9Wizard';
 import { GstSandboxEnvironment } from '../components/GstSandboxEnvironment';
 import { Gstr1TaxRateChart } from '../components/Gstr1TaxRateChart';
 import { AutomatedGstFilingWizard } from '../components/AutomatedGstFilingWizard';
+import { GstReturnFilingWizard } from '../components/GstReturnFilingWizard';
+import { SendFilingStatusWhatsAppModal } from '../components/SendFilingStatusWhatsAppModal';
 import { 
   requestBrowserNotificationPermission, 
   triggerBrowserNotification, 
@@ -44,10 +46,17 @@ const Filing: React.FC = () => {
   });
 
   // State
-  const [activeTab, setActiveTab] = useState<'MONTHLY' | 'ANNUAL' | 'APPROVALS' | 'CALENDAR' | 'SANDBOX'>('MONTHLY');
+  const [activeTab, setActiveTab] = useState<'MONTHLY' | 'ANNUAL' | 'CALENDAR' | 'SANDBOX'>('MONTHLY');
   const [selectedReturn, setSelectedReturn] = useState<FilingRecord | null>(null);
   const [isAutomatedWizardOpen, setIsAutomatedWizardOpen] = useState(false);
   const [wizardPeriod, setWizardPeriod] = useState('July 2026');
+
+  // GSTR-1 / 3B Multi-Step Guided Filing Wizard State
+  const [isGstFilingWizardOpen, setIsGstFilingWizardOpen] = useState(false);
+  const [gstFilingWizardReturn, setGstFilingWizardReturn] = useState<FilingRecord | null>(null);
+  const [gstFilingWizardType, setGstFilingWizardType] = useState<ReturnFormType>('GSTR-3B');
+  const [gstFilingWizardPeriod, setGstFilingWizardPeriod] = useState<string>('July 2026');
+  const [whatsAppFilingRecord, setWhatsAppFilingRecord] = useState<FilingRecord | null>(null);
   
   // Wizard State
   const [wizardStep, setWizardStep] = useState(0);
@@ -213,17 +222,6 @@ const Filing: React.FC = () => {
   };
 
   const renderDashboard = () => {
-      if (activeTab === 'SANDBOX') {
-          return <GstSandboxEnvironment />;
-      }
-      if (activeTab === 'APPROVALS') {
-          return <HierarchicalApprovalModule />;
-      }
-
-      if (activeTab === 'CALENDAR') {
-          return <FilingCalendar filings={filings || []} />;
-      }
-
       const filteredFilings = filings?.filter(f => {
           if (activeTab === 'MONTHLY') return f.type !== 'GSTR-9' && f.type !== 'GSTR-9C';
           return f.type === 'GSTR-9' || f.type === 'GSTR-9C';
@@ -295,8 +293,46 @@ const Filing: React.FC = () => {
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
                       <button 
+                          onClick={() => {
+                              setGstFilingWizardReturn(null);
+                              setGstFilingWizardType('GSTR-3B');
+                              setGstFilingWizardPeriod('July 2026');
+                              setIsGstFilingWizardOpen(true);
+                          }}
+                          className="px-4 py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-indigo-700 text-white text-sm font-bold rounded-lg shadow-md transition-all flex items-center gap-2 active:scale-95"
+                          title="Open Unified Multi-Step GST Return Filing Wizard (GSTR-1 & GSTR-3B)"
+                          id="launch-gst-return-filing-wizard-btn"
+                      >
+                          <ShieldCheck size={16} /> GSTR-1 / 3B Filing Wizard
+                      </button>
+
+                      <button 
+                          onClick={() => {
+                              const gstr1 = filings?.find(f => f.type === 'GSTR-1' && f.status !== 'FILED') || filings?.find(f => f.type === 'GSTR-1');
+                              if (gstr1) {
+                                  handleStartFiling(gstr1);
+                              } else {
+                                  handleStartFiling({
+                                      id: `gstr1-${Date.now()}`,
+                                      type: 'GSTR-1',
+                                      period: 'August 2026',
+                                      fy: '2026-27',
+                                      dueDate: '2026-09-11',
+                                      status: 'PENDING',
+                                      taxLiability: 0
+                                  });
+                              }
+                          }}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg shadow-md transition-all flex items-center gap-2 active:scale-95"
+                          title="Open Guided GSTR-1 Filing Wizard (Upload, HSN, Diagnostics, JSON)"
+                          id="launch-guided-gstr1-btn"
+                      >
+                          <Sparkles size={16} /> Guided GSTR-1 Wizard
+                      </button>
+
+                      <button 
                           onClick={() => setIsAutomatedWizardOpen(true)}
-                          className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-sm font-bold rounded-lg shadow-md transition-all flex items-center gap-2 active:scale-95"
+                          className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm font-bold rounded-lg shadow-md transition-all flex items-center gap-2 active:scale-95"
                           title="Launch Official Automated GST Return Filing Flow"
                       >
                           <FileCheck size={16} /> Automated GST Filing Wizard
@@ -323,12 +359,6 @@ const Filing: React.FC = () => {
                               className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'ANNUAL' ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
                           >
                               Annual Returns
-                          </button>
-                          <button 
-                              onClick={() => setActiveTab('APPROVALS')} 
-                              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'APPROVALS' ? 'bg-white shadow text-blue-600 font-bold' : 'text-slate-500 hover:text-slate-700'}`}
-                          >
-                              Approval Workflow
                           </button>
                           <button 
                               onClick={() => setActiveTab('CALENDAR')} 
@@ -465,6 +495,14 @@ const Filing: React.FC = () => {
                   </div>
               )}
 
+              {activeTab === 'SANDBOX' && (
+                  <GstSandboxEnvironment />
+              )}
+
+              {activeTab === 'CALENDAR' && (
+                  <FilingCalendar filings={filings || []} />
+              )}
+
               {activeTab === 'ANNUAL' && (
                   <Gstr9Wizard />
               )}
@@ -535,9 +573,10 @@ const Filing: React.FC = () => {
                   </div>
               )}
 
-              {isLoading ? (
+              {(activeTab === 'MONTHLY' || activeTab === 'ANNUAL') && (
+                isLoading ? (
                   <div className="text-center py-12 text-slate-500"><Loader2 className="animate-spin mx-auto mb-2"/> Loading returns...</div>
-              ) : (
+                ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {filteredFilings?.map(record => (
                           <div key={record.id} className="bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow p-6 flex flex-col relative overflow-hidden group">
@@ -591,18 +630,51 @@ const Filing: React.FC = () => {
                                   )}
                                   
                                   {record.status === 'FILED' ? (
-                                      <button className="w-full py-2 flex items-center justify-center gap-2 text-blue-600 hover:bg-blue-50 rounded-lg text-sm font-medium transition-colors">
-                                          <Download size={16}/> Download ARN
-                                      </button>
+                                      <div className="flex gap-2">
+                                          <button 
+                                              onClick={() => alert(`Official Filing ARN: ${record.arn || 'AA270826001234F'}`)}
+                                              className="flex-1 py-2 flex items-center justify-center gap-1.5 text-blue-600 hover:bg-blue-50 rounded-lg text-xs font-semibold transition-colors border border-blue-200"
+                                          >
+                                              <Download size={14}/> Download ARN
+                                          </button>
+                                          <button 
+                                              onClick={() => setWhatsAppFilingRecord(record)}
+                                              className="flex-1 py-2 flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm active:scale-95"
+                                              title="Send Filing Status & ARN to Client WhatsApp"
+                                          >
+                                              <MessageSquare size={13} /> WhatsApp
+                                          </button>
+                                      </div>
                                   ) : (
-                                      <button 
-                                          onClick={() => handleStartFiling(record)}
-                                          className={`w-full py-2 flex items-center justify-center gap-2 text-white rounded-lg text-sm font-medium transition-colors shadow-sm ${
-                                              record.type.includes('9') ? 'bg-amber-600 hover:bg-amber-700' : 'bg-slate-900 hover:bg-slate-800'
-                                          }`}
-                                      >
-                                          {record.type.includes('9') ? 'Prepare Annual Return' : 'File Now'} <ChevronRight size={16}/>
-                                      </button>
+                                      <div className="flex gap-2">
+                                          <button 
+                                              onClick={() => {
+                                                  if (record.type === 'GSTR-1' || record.type === 'GSTR-3B') {
+                                                      setGstFilingWizardReturn(record);
+                                                      setGstFilingWizardType(record.type);
+                                                      setGstFilingWizardPeriod(record.period);
+                                                      setIsGstFilingWizardOpen(true);
+                                                  } else {
+                                                      handleStartFiling(record);
+                                                  }
+                                              }}
+                                              className={`flex-1 py-2 flex items-center justify-center gap-1.5 text-white rounded-lg text-sm font-medium transition-colors shadow-sm ${
+                                                  record.type.includes('9') ? 'bg-amber-600 hover:bg-amber-700' : 'bg-slate-900 hover:bg-slate-800'
+                                              }`}
+                                              title="Open Multi-Step Guided Filing Wizard"
+                                          >
+                                              {record.type.includes('9') ? 'Prepare Annual Return' : 'File with Wizard'} <ChevronRight size={15}/>
+                                          </button>
+                                          {record.type !== 'GSTR-9' && record.type !== 'GSTR-9C' && (
+                                              <button
+                                                  onClick={() => handleStartFiling(record)}
+                                                  className="px-3 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg text-xs font-bold transition-colors"
+                                                  title="Open Classic Inline Draft & Version Compare"
+                                              >
+                                                  Draft
+                                              </button>
+                                          )}
+                                      </div>
                                   )}
                               </div>
                           </div>
@@ -614,6 +686,7 @@ const Filing: React.FC = () => {
                           </div>
                       )}
                   </div>
+                )
               )}
           </div>
       );
@@ -1260,7 +1333,7 @@ const Filing: React.FC = () => {
                 selectedReturn={selectedReturn} 
                 onClose={handleCloseWizard} 
                 tenantId={tenantId} 
-                user={user}
+                user={user as any}
                 onFilingSuccess={() => {
                     queryClient.invalidateQueries({ queryKey: ['filings', tenantId] });
                 }}
@@ -1270,7 +1343,7 @@ const Filing: React.FC = () => {
                 selectedReturn={selectedReturn} 
                 onClose={handleCloseWizard} 
                 tenantId={tenantId} 
-                user={user}
+                user={user as any}
                 onFilingSuccess={() => {
                     queryClient.invalidateQueries({ queryKey: ['filings', tenantId] });
                 }}
@@ -1283,11 +1356,53 @@ const Filing: React.FC = () => {
                 isOpen={isAutomatedWizardOpen}
                 onClose={() => setIsAutomatedWizardOpen(false)}
                 tenantId={tenantId}
-                user={user}
+                user={user as any}
                 currentTenant={user?.availableTenants.find(t => t.id === tenantId)}
                 initialPeriod={wizardPeriod}
                 onFilingSuccess={() => {
                     queryClient.invalidateQueries({ queryKey: ['filings', tenantId] });
+                }}
+            />
+        )}
+
+        {/* Multi-Step Guided GST Return Filing Wizard (GSTR-1 & GSTR-3B) */}
+        {isGstFilingWizardOpen && (
+            <GstReturnFilingWizard
+                isOpen={isGstFilingWizardOpen}
+                onClose={() => {
+                    setIsGstFilingWizardOpen(false);
+                    setGstFilingWizardReturn(null);
+                }}
+                initialReturn={gstFilingWizardReturn}
+                initialFormType={gstFilingWizardType}
+                initialPeriod={gstFilingWizardPeriod}
+                initialGstin={user?.availableTenants?.find(t => t.id === tenantId)?.gstin || '27ABCDE1234F1Z5'}
+                tenantId={tenantId}
+                user={user as any}
+                currentTenant={user?.availableTenants.find(t => t.id === tenantId)}
+                onFilingSuccess={() => {
+                    queryClient.invalidateQueries({ queryKey: ['filings', tenantId] });
+                }}
+            />
+        )}
+        {/* WhatsApp Filing Status Modal */}
+        {whatsAppFilingRecord && (
+            <SendFilingStatusWhatsAppModal
+                isOpen={!!whatsAppFilingRecord}
+                onClose={() => setWhatsAppFilingRecord(null)}
+                filing={{
+                    returnType: whatsAppFilingRecord.type,
+                    period: whatsAppFilingRecord.period,
+                    status: whatsAppFilingRecord.status,
+                    arn: whatsAppFilingRecord.arn,
+                    filedDate: whatsAppFilingRecord.filedDate,
+                    taxLiability: whatsAppFilingRecord.taxLiability,
+                    recipientPhone: '+919876543210',
+                    clientName: user?.availableTenants.find(t => t.id === tenantId)?.name || 'Acme Industrial Corp',
+                    recipientGstin: user?.availableTenants.find(t => t.id === tenantId)?.gstin || '27ABCDE1234F1Z5'
+                }}
+                onSuccess={() => {
+                    setWhatsAppFilingRecord(null);
                 }}
             />
         )}

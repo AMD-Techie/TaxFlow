@@ -29,20 +29,18 @@ const InactivityTracker: React.FC = () => {
   const warningTimerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Listen for policy updates dispatched from Settings
-  useEffect(() => {
-    const handlePolicyUpdate = () => {
-      const updated = getPolicyForDepartment(user?.primaryDepartment);
-      setActivePolicy(updated);
-    };
-
-    window.addEventListener('inactivity-policy-updated', handlePolicyUpdate);
-    return () => window.removeEventListener('inactivity-policy-updated', handlePolicyUpdate);
-  }, [user?.primaryDepartment]);
-
   const inactivityLimitMs = (activePolicy?.inactivityTimeoutMinutes || 14) * 60 * 1000;
   const warningDurationSec = activePolicy?.warningDurationSeconds || 60;
   const warningDurationMs = warningDurationSec * 1000;
+
+  const handleLogout = useCallback(() => {
+    dispatch(logout());
+    window.location.hash = '/login';
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    setShowWarning(false);
+  }, [dispatch]);
 
   const startWarning = useCallback(() => {
     setShowWarning(true);
@@ -65,7 +63,26 @@ const InactivityTracker: React.FC = () => {
         return prev - 1;
       });
     }, 1000);
-  }, [warningDurationSec, warningDurationMs]);
+  }, [warningDurationSec, warningDurationMs, handleLogout]);
+
+  // Listen for policy updates and manual demo trigger
+  useEffect(() => {
+    const handlePolicyUpdate = () => {
+      const updated = getPolicyForDepartment(user?.primaryDepartment);
+      setActivePolicy(updated);
+    };
+
+    const handleDemoTrigger = () => {
+      startWarning();
+    };
+
+    window.addEventListener('inactivity-policy-updated', handlePolicyUpdate);
+    window.addEventListener('trigger-inactivity-warning-demo', handleDemoTrigger);
+    return () => {
+      window.removeEventListener('inactivity-policy-updated', handlePolicyUpdate);
+      window.removeEventListener('trigger-inactivity-warning-demo', handleDemoTrigger);
+    };
+  }, [user?.primaryDepartment, startWarning]);
 
   const restartInactivityTimer = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -86,15 +103,6 @@ const InactivityTracker: React.FC = () => {
 
     restartInactivityTimer();
   }, [warningDurationSec, restartInactivityTimer]);
-
-  const handleLogout = () => {
-    dispatch(logout());
-    window.location.hash = '/login';
-    if (timerRef.current) clearTimeout(timerRef.current);
-    if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
-    if (countdownRef.current) clearInterval(countdownRef.current);
-    setShowWarning(false);
-  };
 
   const handleStayLoggedIn = (extensionMinutes: number = 15) => {
     if (activePolicy.enforcePasswordReauth && passwordInput.length < 3) {
@@ -217,11 +225,14 @@ const InactivityTracker: React.FC = () => {
                 </div>
                 
                 <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                  Session Expiring in <span className={remainingSeconds <= 15 ? 'text-rose-600 font-mono' : 'text-amber-600 font-mono'}>{remainingSeconds}s</span>
+                  Are You Still There?
                 </h3>
+                <p className="text-sm font-bold text-amber-600 mt-1 flex items-center gap-1.5">
+                  <Clock size={16} /> Session Timing Out in <span className="font-mono text-base font-extrabold">{remainingSeconds}s</span>
+                </p>
                 
                 <p className="text-slate-600 text-xs font-medium mt-2 max-w-md leading-relaxed">
-                  You have been inactive for over <strong>{activePolicy.inactivityTimeoutMinutes} minutes</strong> under the <strong>{activePolicy.departmentName}</strong> security policy. To prevent unauthorized access, your session will automatically log out in <strong>{remainingSeconds} seconds</strong>.
+                  You have been inactive for over <strong>{activePolicy.inactivityTimeoutMinutes} minutes</strong>. For your security, your session will automatically log out soon unless you choose to stay connected.
                 </p>
 
                 {/* Password Re-auth Field if required by department policy */}
@@ -318,10 +329,10 @@ const InactivityTracker: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleStayLoggedIn(15)}
-                    className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-extrabold text-xs tracking-wide uppercase flex items-center justify-center gap-2.5 transition-all shadow-lg shadow-blue-600/30 active:scale-98 cursor-pointer"
+                    className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-extrabold text-sm tracking-wide flex items-center justify-center gap-2.5 transition-all shadow-lg shadow-blue-600/25 active:scale-98 cursor-pointer"
                   >
-                    <RefreshCw size={18} className="animate-spin-slow" />
-                    <span>Extend Session &amp; Keep Working</span>
+                    <RefreshCw size={18} />
+                    <span>Stay Logged In</span>
                   </button>
 
                   <div className="grid grid-cols-2 gap-2 mt-1">

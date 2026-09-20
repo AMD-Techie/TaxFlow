@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store/store';
 import { fetchComplianceAlerts, fetchVendorRisks, updateNotificationSettings } from '../services/api';
 import { 
   Bell, CalendarClock, AlertTriangle, ShieldAlert, Mail, MessageSquare, 
-  CheckCircle2, AlertCircle, Clock, ChevronRight, Send, Laptop, RefreshCw
+  CheckCircle2, AlertCircle, Clock, ChevronRight, Send, Laptop, RefreshCw,
+  LayoutDashboard, Users, Scale, FileText, Activity, Search, Cpu, X,
+  ShieldCheck, Info, Sparkles, ExternalLink, ArrowRight, Archive
 } from 'lucide-react';
 import { ComplianceAlert, NotificationSettings } from '../types';
 import { 
@@ -25,17 +28,20 @@ import { WhatsAppNotificationCenter } from '../components/WhatsAppNotificationCe
 import { ComplianceArchiveTimelineView } from '../components/ComplianceArchiveTimelineView';
 
 const Compliance: React.FC = () => {
+  const navigate = useNavigate();
   const user = useSelector((state: RootState) => state.auth.user);
   const tenantId = user?.currentTenantId || 't1';
   const tenant = user?.availableTenants?.find(t => t.id === tenantId);
   const tenantName = tenant?.name || 'TaxFlow Enterprise Ltd.';
 
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'COMPLIANCE_ARCHIVE' | 'WHATSAPP_REMINDERS' | 'ARCHITECTURE' | 'GSTIN_SEARCH' | 'VENDOR_RISK' | 'ITC_WATCHLIST' | 'REGULATORY_CHANGES' | 'REGULATORY_AUDIT' | 'REGULATORY_AUDIT_LOG' | 'NOTIFICATIONS'>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'ARCHIVE' | 'WHATSAPP_REMINDERS' | 'ARCHITECTURE' | 'GSTIN_SEARCH' | 'VENDOR_RISK' | 'ITC_WATCHLIST' | 'REGULATORY_CHANGES' | 'REGULATORY_AUDIT' | 'REGULATORY_AUDIT_LOG' | 'NOTIFICATIONS'>('OVERVIEW');
   const [emailEnabled, setEmailEnabled] = useState(true);
   const [whatsappEnabled, setWhatsappEnabled] = useState(true);
   const [desktopEnabled, setDesktopEnabled] = useState(true);
   const [browserPerm, setBrowserPerm] = useState<NotificationPermission>('default');
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [selectedAlert, setSelectedAlert] = useState<ComplianceAlert | null>(null);
+  const [dismissedAlertIds, setDismissedAlertIds] = useState<string[]>([]);
 
   // Slack Webhook integration states
   const [slackWebhookUrl, setSlackWebhookUrl] = useState('');
@@ -143,54 +149,155 @@ const Compliance: React.FC = () => {
 
   const { mutate: saveSettings, isPending: isSavingSettings } = useMutation({
       mutationFn: updateNotificationSettings,
-      onSuccess: () => alert('Notification preferences updated!')
+      onSuccess: () => {
+        setToastMsg('Notification preferences updated successfully!');
+        setTimeout(() => setToastMsg(null), 4000);
+      }
   });
 
-  const getSeverityColor = (severity: string) => {
-      switch(severity) {
-          case 'HIGH': return 'bg-red-50 text-red-700 border-red-200';
-          case 'MEDIUM': return 'bg-amber-50 text-amber-700 border-amber-200';
-          case 'LOW': return 'bg-blue-50 text-blue-700 border-blue-200';
-          default: return 'bg-slate-50 text-slate-700';
-      }
+  const activeAlerts = (alerts || []).filter(a => !dismissedAlertIds.includes(a.id));
+
+  interface TabItem {
+    key: 'OVERVIEW' | 'ARCHIVE' | 'WHATSAPP_REMINDERS' | 'ARCHITECTURE' | 'GSTIN_SEARCH' | 'VENDOR_RISK' | 'ITC_WATCHLIST' | 'REGULATORY_CHANGES' | 'REGULATORY_AUDIT' | 'REGULATORY_AUDIT_LOG' | 'NOTIFICATIONS';
+    label: string;
+    icon: React.ElementType;
+    count?: number | string;
+  }
+
+  const tabs: TabItem[] = [
+    { key: 'OVERVIEW', label: 'Overview', icon: LayoutDashboard, count: activeAlerts.length },
+    { key: 'ARCHIVE', label: 'Statutory Archive', icon: Archive },
+    { key: 'VENDOR_RISK', label: 'Vendor Risks', icon: Users, count: vendorRisks?.length },
+    { key: 'ITC_WATCHLIST', label: 'ITC Watchlist', icon: Scale },
+    { key: 'REGULATORY_CHANGES', label: 'Regulatory Updates', icon: FileText },
+    { key: 'REGULATORY_AUDIT', label: 'Audit Events', icon: Activity },
+    { key: 'REGULATORY_AUDIT_LOG', label: 'Decision Log', icon: CheckCircle2 },
+    { key: 'GSTIN_SEARCH', label: 'GSTIN Verification', icon: Search },
+    { key: 'WHATSAPP_REMINDERS', label: 'WhatsApp Alerts', icon: MessageSquare },
+    { key: 'ARCHITECTURE', label: 'Control Tower', icon: Cpu },
+    { key: 'NOTIFICATIONS', label: 'Alert Settings', icon: Bell },
+  ];
+
+  const getSeverityStyle = (severity: string) => {
+    switch (severity) {
+      case 'HIGH':
+        return {
+          cardBg: 'bg-gradient-to-b from-rose-50/40 via-white to-white border-rose-200/90 hover:border-rose-300',
+          iconBg: 'bg-rose-100 text-rose-700',
+          badge: 'bg-rose-100 text-rose-800 border-rose-200/80',
+          label: 'Critical Risk'
+        };
+      case 'MEDIUM':
+        return {
+          cardBg: 'bg-gradient-to-b from-amber-50/40 via-white to-white border-amber-200/90 hover:border-amber-300',
+          iconBg: 'bg-amber-100 text-amber-700',
+          badge: 'bg-amber-100 text-amber-800 border-amber-200/80',
+          label: 'Attention'
+        };
+      case 'LOW':
+      default:
+        return {
+          cardBg: 'bg-gradient-to-b from-blue-50/40 via-white to-white border-blue-200/90 hover:border-blue-300',
+          iconBg: 'bg-blue-100 text-blue-700',
+          badge: 'bg-blue-100 text-blue-800 border-blue-200/80',
+          label: 'Advisory'
+        };
+    }
   };
 
   const getAlertIcon = (type: ComplianceAlert['type']) => {
-      switch(type) {
-          case 'DUE_DATE': return <CalendarClock size={20} className="text-blue-600"/>;
-          case 'VENDOR_RISK': return <ShieldAlert size={20} className="text-amber-600"/>;
-          case 'ITC_EXPIRY': return <Clock size={20} className="text-red-600"/>;
-          case 'PENALTY': return <AlertTriangle size={20} className="text-orange-600"/>;
-      }
+    switch (type) {
+      case 'DUE_DATE': return <CalendarClock size={18} />;
+      case 'VENDOR_RISK': return <ShieldAlert size={18} />;
+      case 'ITC_EXPIRY': return <Clock size={18} />;
+      case 'PENALTY': return <AlertTriangle size={18} />;
+    }
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">Compliance Center</h2>
-          <p className="text-slate-500">Monitor due dates, vendor risks, and manage automated alerts.</p>
+      {/* Top Header Section with Balanced Alignment */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-2 border-b border-slate-200/70">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200/60">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              Live Statutory Radar
+            </span>
+            <span className="text-xs text-slate-400 font-medium">Auto-synced across GSTN & ERP Books</span>
+          </div>
+          <h2 className="text-2xl lg:text-3xl font-black text-slate-900 tracking-tight">Compliance Center</h2>
+          <p className="text-sm text-slate-500 max-w-2xl">
+            Monitor statutory filing due dates, vendor counterparty compliance risks, and automated regulatory alerts.
+          </p>
         </div>
-        <div className="flex bg-slate-100 p-1 rounded-lg overflow-x-auto">
-           {['OVERVIEW', 'COMPLIANCE_ARCHIVE', 'WHATSAPP_REMINDERS', 'ARCHITECTURE', 'GSTIN_SEARCH', 'VENDOR_RISK', 'ITC_WATCHLIST', 'REGULATORY_CHANGES', 'REGULATORY_AUDIT', 'REGULATORY_AUDIT_LOG', 'NOTIFICATIONS'].map(tab => (
-              <button 
-                key={tab}
-                onClick={() => setActiveTab(tab as any)}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-all whitespace-nowrap ${activeTab === tab ? 'bg-white shadow text-blue-600 font-bold' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                {tab === 'COMPLIANCE_ARCHIVE' ? '🗄️ Compliance Archive' : tab === 'WHATSAPP_REMINDERS' ? '💬 WhatsApp GST Reminders' : tab === 'GSTIN_SEARCH' ? 'GSTIN Verification' : tab === 'REGULATORY_CHANGES' ? 'Regulatory Changes' : tab === 'REGULATORY_AUDIT' ? 'Regulatory Event Audit' : tab === 'REGULATORY_AUDIT_LOG' ? 'Decision Audit Log' : tab === 'ARCHITECTURE' ? 'Control Tower Architecture' : tab === 'ITC_WATCHLIST' ? 'ITC Control Ledger' : tab.replace('_', ' ')}
-              </button>
-           ))}
+
+        <div className="flex items-center gap-2.5 shrink-0 self-start lg:self-center">
+          <button 
+            onClick={() => {
+              setToastMsg('Refreshing statutory feeds and exception records...');
+              setTimeout(() => setToastMsg('Compliance status synchronized! All ledgers up to date.'), 800);
+              setTimeout(() => setToastMsg(null), 3500);
+            }}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold border border-slate-200 shadow-xs transition-colors"
+          >
+            <RefreshCw size={14} className="text-slate-500" />
+            <span>Sync Feeds</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('ARCHIVE')}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold border border-indigo-200 shadow-xs transition-colors"
+            title="Access 72-Month Statutory Ledger Archive & Tamper Verification"
+          >
+            <Archive size={14} className="text-indigo-600" />
+            <span>Statutory Archive</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('NOTIFICATIONS')}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-xs"
+          >
+            <Bell size={14} />
+            <span>Notification Rules</span>
+          </button>
         </div>
       </div>
 
-      {activeTab === 'COMPLIANCE_ARCHIVE' && (
+      {/* Full-width Sub-Navigation Pill Bar with zero ugly scrollbar */}
+      <div className="w-full bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80">
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-0.5 px-0.5">
+          {tabs.map((tabItem) => {
+            const Icon = tabItem.icon;
+            const isActive = activeTab === tabItem.key;
+            return (
+              <button
+                key={tabItem.key}
+                onClick={() => setActiveTab(tabItem.key as any)}
+                className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-xl transition-all duration-150 whitespace-nowrap shrink-0 ${
+                  isActive
+                    ? 'bg-white shadow-xs text-blue-600 border border-slate-200/90 font-extrabold'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium'
+                }`}
+              >
+                <Icon size={15} className={isActive ? 'text-blue-600' : 'text-slate-400'} />
+                <span>{tabItem.label}</span>
+                {Boolean(tabItem.count) && (
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
+                    isActive ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {tabItem.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {activeTab === 'ARCHIVE' && (
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <ComplianceArchiveTimelineView
-            tenantId={tenantId}
-            tenantName={tenantName}
-            onNavigateToSettings={() => setActiveTab('NOTIFICATIONS')}
-          />
+          <ComplianceArchiveTimelineView tenantId={tenantId} tenantName={tenantName} />
         </div>
       )}
 
@@ -232,71 +339,280 @@ const Compliance: React.FC = () => {
       )}
 
       {activeTab === 'OVERVIEW' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
-              {/* Alert Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {alerts?.length === 0 ? (
-                       <div className="col-span-full text-center py-8 text-slate-500 bg-white rounded-xl border border-slate-200">No active alerts for this organization.</div>
-                  ) : alerts?.map(alert => (
-                      <div key={alert.id} className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-md transition-all">
-                          <div className={`absolute top-0 left-0 w-1 h-full ${alert.severity === 'HIGH' ? 'bg-red-500' : alert.severity === 'MEDIUM' ? 'bg-amber-500' : 'bg-blue-500'}`}></div>
-                          <div className="flex justify-between items-start mb-3 pl-2">
-                              <div className="p-2 bg-slate-50 rounded-lg">{getAlertIcon(alert.type)}</div>
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getSeverityColor(alert.severity)}`}>
-                                  {alert.severity}
-                              </span>
-                          </div>
-                          <h3 className="font-bold text-slate-800 mb-1 pl-2">{alert.title}</h3>
-                          <p className="text-sm text-slate-500 mb-4 pl-2 line-clamp-2">{alert.message}</p>
-                          <div className="flex items-center justify-between pl-2 pt-2 border-t border-slate-50">
-                              <span className="text-xs font-mono text-slate-400">{alert.date}</span>
-                              <button className="text-blue-600 hover:text-blue-700 text-xs font-medium flex items-center gap-1">
-                                  Action <ChevronRight size={12}/>
-                              </button>
-                          </div>
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          {/* Top KPI Metrics Bar */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs flex items-center gap-3.5">
+              <div className="p-3 bg-red-50 text-red-600 rounded-xl shrink-0">
+                <AlertTriangle size={20} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider truncate">Active Exceptions</p>
+                <div className="flex items-baseline gap-2 mt-0.5">
+                  <span className="text-xl font-black text-slate-900">{activeAlerts.length}</span>
+                  <span className="text-[10px] font-bold text-red-700 bg-red-50 border border-red-200/60 px-1.5 py-0.5 rounded-md">
+                    {activeAlerts.filter(a => a.severity === 'HIGH').length} Critical
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs flex items-center gap-3.5">
+              <div className="p-3 bg-blue-50 text-blue-600 rounded-xl shrink-0">
+                <CalendarClock size={20} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider truncate">Next Due Date</p>
+                <div className="flex items-baseline gap-2 mt-0.5">
+                  <span className="text-xl font-black text-slate-900">GSTR-3B</span>
+                  <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200/60 px-1.5 py-0.5 rounded-md">
+                    20th
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs flex items-center gap-3.5">
+              <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl shrink-0">
+                <ShieldCheck size={20} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider truncate">Supplier Health</p>
+                <div className="flex items-baseline gap-2 mt-0.5">
+                  <span className="text-xl font-black text-slate-900">94.8%</span>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 rounded-md">
+                    Verified
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs flex items-center gap-3.5">
+              <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl shrink-0">
+                <Scale size={20} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider truncate">ITC Protected</p>
+                <div className="flex items-baseline gap-2 mt-0.5">
+                  <span className="text-xl font-black text-slate-900">₹18.42L</span>
+                  <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/60 px-1.5 py-0.5 rounded-md">
+                    Safe
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Alert Cards Section - Balanced layout without conflicting side-stripes */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Urgent Statutory & Counterparty Alerts</h3>
+                <p className="text-xs text-slate-500">Live issues requiring reconciliation, validation, or supplier follow-up.</p>
+              </div>
+              {activeAlerts.length > 0 && (
+                <span className="text-xs font-bold text-slate-500">
+                  Showing {activeAlerts.length} active notifications
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {activeAlerts.length === 0 ? (
+                <div className="col-span-full text-center py-12 px-4 text-slate-500 bg-white rounded-2xl border border-slate-200/90 shadow-xs space-y-2">
+                  <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+                    <CheckCircle2 size={24} />
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-800">All Clear! No Active Exceptions</h4>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    All compliance due dates, vendor filings, and ITC reconciliation thresholds are in full compliance with GST statutory rules.
+                  </p>
+                </div>
+              ) : activeAlerts.map(alert => {
+                const style = getSeverityStyle(alert.severity);
+                return (
+                  <div 
+                    key={alert.id} 
+                    className={`p-5 rounded-2xl border shadow-xs transition-all duration-200 hover:shadow-md flex flex-col justify-between ${style.cardBg}`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className={`p-2.5 rounded-xl ${style.iconBg}`}>
+                          {getAlertIcon(alert.type)}
+                        </div>
+                        <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full border ${style.badge}`}>
+                          {style.label}
+                        </span>
                       </div>
-                  ))}
+
+                      <h4 className="font-bold text-slate-900 text-sm mt-3.5 leading-snug line-clamp-1">{alert.title}</h4>
+                      <p className="text-xs text-slate-600 mt-1.5 leading-relaxed line-clamp-2">{alert.message}</p>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-3.5 mt-4 border-t border-slate-100">
+                      <div className="flex items-center gap-1.5 text-xs font-mono text-slate-400">
+                        <Clock size={12} className="text-slate-400" />
+                        <span>{alert.date}</span>
+                      </div>
+                      <button 
+                        onClick={() => setSelectedAlert(alert)}
+                        className="text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors flex items-center gap-1 py-1 px-2 rounded-lg hover:bg-blue-50"
+                      >
+                        <span>Review & Action</span>
+                        <ChevronRight size={13} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Timeline Section - Clean Stepper Layout */}
+          <div className="bg-white rounded-2xl shadow-xs border border-slate-200/90 p-6 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <CalendarClock size={20} className="text-blue-600"/>
+                  Statutory GST Compliance Schedule (Current Cycle)
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Monthly statutory return filing dates and tax settlement milestones under the CGST/SGST Act.
+                </p>
+              </div>
+              <button 
+                onClick={() => navigate('/filing')}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline self-start sm:self-auto"
+              >
+                <span>Filing Dashboard</span>
+                <ArrowRight size={13} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3.5">
+              {[
+                { day: '11th', code: 'GSTR-1', title: 'Outward Supplies', desc: 'B2B & B2C Invoices, credit/debit notes', status: 'Done', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+                { day: '13th', code: 'GSTR-6', title: 'ISD Distribution', desc: 'Input service distributor credit notes', status: 'Pending', badgeClass: 'bg-slate-100 text-slate-700 border-slate-200' },
+                { day: '20th', code: 'GSTR-3B', title: 'Summary Return', desc: 'Net tax discharge & ITC claim', status: 'Urgent', badgeClass: 'bg-rose-50 text-rose-700 border-rose-200 font-bold' },
+                { day: '25th', code: 'PMT-06', title: 'QRMP Challan', desc: 'Self-assessment monthly tax deposit', status: 'Upcoming', badgeClass: 'bg-blue-50 text-blue-700 border-blue-200' },
+                { day: '30th', code: 'Rule 37A', title: 'ITC Reversal Audit', desc: 'Supplier non-filing credit adjustments', status: 'Scheduled', badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+              ].map((milestone, idx) => (
+                <div 
+                  key={idx}
+                  className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white hover:border-blue-200 hover:shadow-xs transition-all space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-black text-slate-900">{milestone.day}</span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${milestone.badgeClass}`}>
+                      {milestone.status}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-xs font-mono font-bold text-blue-600 block">{milestone.code}</span>
+                    <h5 className="font-bold text-slate-800 text-sm">{milestone.title}</h5>
+                    <p className="text-[11px] text-slate-500 mt-1 leading-normal">{milestone.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Alert Action / Remediation Modal */}
+      {selectedAlert && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200 animate-in zoom-in-95 duration-150 space-y-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className={`p-3 rounded-2xl ${
+                  selectedAlert.severity === 'HIGH' ? 'bg-rose-100 text-rose-700' :
+                  selectedAlert.severity === 'MEDIUM' ? 'bg-amber-100 text-amber-700' :
+                  'bg-blue-100 text-blue-700'
+                }`}>
+                  {getAlertIcon(selectedAlert.type)}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                      selectedAlert.severity === 'HIGH' ? 'bg-rose-100 text-rose-800 border-rose-200' :
+                      selectedAlert.severity === 'MEDIUM' ? 'bg-amber-100 text-amber-800 border-amber-200' :
+                      'bg-blue-100 text-blue-800 border-blue-200'
+                    }`}>
+                      {selectedAlert.severity} Severity
+                    </span>
+                    <span className="text-xs font-mono text-slate-400">{selectedAlert.date}</span>
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900 mt-1">{selectedAlert.title}</h3>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSelectedAlert(null)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 text-xs space-y-1.5">
+              <div className="font-bold text-slate-700">Diagnosis & Summary:</div>
+              <p className="text-slate-600 leading-relaxed">{selectedAlert.message}</p>
+            </div>
+
+            <div className="p-3.5 bg-blue-50/70 border border-blue-200/80 rounded-2xl text-xs space-y-1 text-blue-900">
+              <div className="font-bold flex items-center gap-1.5 text-blue-800">
+                <Info size={14} /> Recommended Action & Statutory Reference:
+              </div>
+              <p className="text-blue-700 leading-relaxed">
+                {selectedAlert.type === 'VENDOR_RISK' 
+                  ? 'Verify supplier GSTR-1 filing status against GSTR-2B. Under Section 16(2)(c), ITC is contingent on supplier tax payment.'
+                  : selectedAlert.type === 'DUE_DATE'
+                  ? 'Ensure all outward supply invoices and purchase registers are finalized before generating the GSTR-3B summary tax discharge.'
+                  : 'Review the flagged voucher or invoice entry and apply necessary adjustments to prevent statutory interest charges u/s 50.'}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+              <div className="flex items-center gap-2">
+                {selectedAlert.type === 'VENDOR_RISK' && (
+                  <button
+                    onClick={() => {
+                      setSelectedAlert(null);
+                      setActiveTab('VENDOR_RISK');
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors"
+                  >
+                    Vendor Scorecard
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setSelectedAlert(null);
+                    navigate('/reconciliation');
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors"
+                >
+                  Open Reconciliation
+                </button>
               </div>
 
-              {/* Timeline Section */}
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                  <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-                      <CalendarClock size={20} className="text-blue-500"/> Upcoming Timeline (Nov 2024)
-                  </h3>
-                  <div className="relative border-l-2 border-slate-100 ml-3 space-y-8 pl-8 py-2">
-                      {[
-                          { day: '11', title: 'GSTR-1 Due Date', status: 'Done', type: 'FILE' },
-                          { day: '13', title: 'GSTR-6 (ISD) Due Date', status: 'Pending', type: 'FILE' },
-                          { day: '20', title: 'GSTR-3B Due Date', status: 'Urgent', type: 'FILE' },
-                          { day: '25', title: 'Payment of Tax (PMT-06)', status: 'Upcoming', type: 'PAY' },
-                          { day: '30', title: 'ITC Reversal Deadline', status: 'Upcoming', type: 'ITC' },
-                      ].map((event, i) => (
-                          <div key={i} className="relative">
-                              <span className={`absolute -left-[41px] top-0 w-6 h-6 rounded-full border-2 flex items-center justify-center text-[10px] font-bold z-10 bg-white ${
-                                  event.status === 'Done' ? 'border-green-500 text-green-600' : 
-                                  event.status === 'Urgent' ? 'border-red-500 text-red-600 animate-pulse' : 
-                                  'border-slate-300 text-slate-500'
-                              }`}>
-                                  {event.day}
-                              </span>
-                              <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-100 hover:bg-white hover:shadow-sm transition-all">
-                                  <div>
-                                      <p className="font-semibold text-slate-800 text-sm">{event.title}</p>
-                                      <p className="text-xs text-slate-500">Compliance Type: {event.type}</p>
-                                  </div>
-                                  <span className={`text-xs px-2 py-1 rounded font-medium ${
-                                      event.status === 'Done' ? 'bg-green-100 text-green-700' : 
-                                      event.status === 'Urgent' ? 'bg-red-100 text-red-700' : 
-                                      'bg-slate-200 text-slate-600'
-                                  }`}>
-                                      {event.status}
-                                  </span>
-                              </div>
-                          </div>
-                      ))}
-                  </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setDismissedAlertIds(prev => [...prev, selectedAlert.id]);
+                    setSelectedAlert(null);
+                    setToastMsg(`Alert "${selectedAlert.title}" marked as reviewed.`);
+                    setTimeout(() => setToastMsg(null), 3500);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-xs"
+                >
+                  Mark as Reviewed
+                </button>
               </div>
+            </div>
           </div>
+        </div>
       )}
 
       {activeTab === 'VENDOR_RISK' && (

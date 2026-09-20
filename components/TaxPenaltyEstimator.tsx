@@ -213,7 +213,9 @@ export const TaxPenaltyEstimator: React.FC = () => {
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
               Select GST Return Type
-              <HelpCircle size={12} className="text-slate-400 cursor-help" title="Late fees and interest apply differently based on the chosen form" />
+              <span title="Late fees and interest apply differently based on the chosen form" className="cursor-help inline-flex">
+                <HelpCircle size={12} className="text-slate-400" />
+              </span>
             </label>
             <div className="grid grid-cols-2 gap-2">
               {[
@@ -275,7 +277,9 @@ export const TaxPenaltyEstimator: React.FC = () => {
               <div className="flex justify-between items-center text-xs font-bold text-slate-700">
                 <span className="flex items-center gap-1">
                   Annual Aggregate Turnover (AATO)
-                  <Info size={11} className="text-slate-400" title="Used to calculate the maximum legal late fee caps" />
+                  <span title="Used to calculate the maximum legal late fee caps" className="cursor-help inline-flex">
+                    <Info size={11} className="text-slate-400" />
+                  </span>
                 </span>
                 <span className="font-mono text-blue-600">₹ {(turnover / 10000000).toFixed(2)} Cr</span>
               </div>

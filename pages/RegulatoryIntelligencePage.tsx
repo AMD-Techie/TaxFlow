@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   BookOpen, 
   Search, 
@@ -14,6 +14,7 @@ import {
   ChevronRight,
   TrendingUp
 } from 'lucide-react';
+import { TxCompliancePagination } from '../components/TxCompliancePagination';
 
 interface Circular {
   id: string;
@@ -92,6 +93,83 @@ const mockCirculars: Circular[] = [
     impactLevel: 'HIGH',
     status: 'ACTIVE',
     affectedModules: ['FILING', 'RECONCILIATION'],
+  },
+  {
+    id: 'c6',
+    type: 'CIRCULAR',
+    number: '200/12/2023-GST',
+    date: '2023-10-27',
+    title: 'Clarification on GST rate on corporate guarantees provided by parent companies to subsidiaries',
+    summary: 'Valuation of corporate guarantee to be taken as 1% of the amount guaranteed or actual consideration, whichever is higher.',
+    impactLevel: 'HIGH',
+    status: 'ACTIVE',
+    affectedModules: ['COMPUTATION', 'ITC'],
+  },
+  {
+    id: 'c7',
+    type: 'NOTIFICATION',
+    number: '56/2023-Central Tax',
+    date: '2023-12-28',
+    title: 'Extension of time limit for recovery of tax under Section 73',
+    summary: 'Extends the time limit under Section 73(10) for issuance of order for FY 2018-19 and FY 2019-20.',
+    impactLevel: 'HIGH',
+    status: 'ACTIVE',
+    affectedModules: ['LITIGATION', 'AUDIT'],
+  },
+  {
+    id: 'c8',
+    type: 'CIRCULAR',
+    number: '201/13/2023-GST',
+    date: '2023-11-10',
+    title: 'Clarification regarding export realization through Special Rupee Vostro Accounts (SRVA)',
+    summary: 'Export proceeds received in INR via SRVA permitted by RBI shall be considered as valid foreign exchange realization for GST zero-rating.',
+    impactLevel: 'MEDIUM',
+    status: 'ACTIVE',
+    affectedModules: ['ITC', 'EXPORTS'],
+  },
+  {
+    id: 'c9',
+    type: 'ADVISORY',
+    number: 'GSTN Advisory 592',
+    date: '2024-01-05',
+    title: 'Mandatory 6-Digit HSN reporting in GSTR-1 & e-Invoicing',
+    summary: 'Taxpayers with Aggregate Annual Turnover > 5 Crore must mandate 6-digit HSN codes across B2B and export invoices.',
+    impactLevel: 'MEDIUM',
+    status: 'ACTIVE',
+    affectedModules: ['INVOICING', 'E_INVOICE'],
+  },
+  {
+    id: 'c10',
+    type: 'COUNCIL_RECOMMENDATION',
+    number: '52nd GST Council Meeting',
+    date: '2023-10-07',
+    title: 'Exemption on Extra Neutral Alcohol (ENA) supplied for manufacturing alcoholic liquor',
+    summary: 'Council recommended keeping ENA used for manufacturing alcoholic liquor for human consumption outside the scope of GST.',
+    impactLevel: 'LOW',
+    status: 'ACTIVE',
+    affectedModules: ['COMPUTATION'],
+  },
+  {
+    id: 'c11',
+    type: 'NOTIFICATION',
+    number: '13/2024-Central Tax',
+    date: '2024-02-15',
+    title: 'Enforcement of Rule 59(6) sequential return filing restriction',
+    summary: 'Blocks filing of GSTR-1 if GSTR-3B for previous tax period is not filed by taxpayer.',
+    impactLevel: 'HIGH',
+    status: 'ACTIVE',
+    affectedModules: ['FILING', 'COMPLIANCE'],
+  },
+  {
+    id: 'c12',
+    type: 'CIRCULAR',
+    number: '204/16/2024-GST',
+    date: '2024-03-01',
+    title: 'Standard Operating Procedure for handling mismatches between GSTR-1 and GSTR-3B under Rule 88C',
+    summary: 'Provides timelines and standardized response templates for System-generated DRC-01B notices.',
+    impactLevel: 'HIGH',
+    status: 'ACTIVE',
+    affectedModules: ['RECONCILIATION', 'NOTICES'],
   }
 ];
 
@@ -131,6 +209,60 @@ const mockHsnImpacts: HsnImpact[] = [
     effectiveDate: '2023-01-01',
     notificationRef: '1/2017-CT(R)',
     status: 'ACTIVE'
+  },
+  {
+    hsnCode: '8517',
+    description: 'Telephone sets, smartphones and other apparatus for transmission of voice or images',
+    oldRate: 12,
+    newRate: 18,
+    effectiveDate: '2024-02-01',
+    notificationRef: '04/2024-CT(R)',
+    status: 'ACTIVE'
+  },
+  {
+    hsnCode: '3004',
+    description: 'Medicaments for therapeutic or prophylactic uses put up in measured doses',
+    oldRate: 12,
+    newRate: 5,
+    effectiveDate: '2024-01-15',
+    notificationRef: '02/2024-CT(R)',
+    status: 'ACTIVE'
+  },
+  {
+    hsnCode: '2106',
+    description: 'Food preparations not elsewhere specified or included including nutritional supplements',
+    oldRate: 18,
+    newRate: 18,
+    effectiveDate: '2023-10-01',
+    notificationRef: '19/2023-CT(R)',
+    status: 'ACTIVE'
+  },
+  {
+    hsnCode: '8471',
+    description: 'Automatic data processing machines, laptops, microcomputers and magnetic readers',
+    oldRate: 18,
+    newRate: 18,
+    effectiveDate: '2023-08-01',
+    notificationRef: '11/2023-CT(R)',
+    status: 'ACTIVE'
+  },
+  {
+    hsnCode: '7308',
+    description: 'Structures and parts of structures of iron or steel, plates, rods, angles, shapes',
+    oldRate: 18,
+    newRate: 18,
+    effectiveDate: '2024-03-01',
+    notificationRef: '08/2024-CT(R)',
+    status: 'ACTIVE'
+  },
+  {
+    hsnCode: '0403',
+    description: 'Yogurt, buttermilk, curd and fermented milk or cream whether or not flavored',
+    oldRate: 5,
+    newRate: 0,
+    effectiveDate: '2024-05-01',
+    notificationRef: 'GST Council 53rd Meeting',
+    status: 'UPCOMING'
   }
 ];
 
@@ -139,17 +271,44 @@ const RegulatoryIntelligencePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<string>('ALL');
 
-  const filteredCirculars = mockCirculars.filter(c => {
-    const matchesSearch = c.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          c.number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          c.summary.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = selectedType === 'ALL' || c.type === selectedType;
-    return matchesSearch && matchesType;
-  });
+  // Pagination States
+  const [updatesPage, setUpdatesPage] = useState<number>(1);
+  const [updatesPageSize, setUpdatesPageSize] = useState<number>(5);
 
-  const filteredHsn = mockHsnImpacts.filter(h => {
-    return h.hsnCode.includes(searchQuery) || h.description.toLowerCase().includes(searchQuery.toLowerCase());
-  });
+  const [hsnPage, setHsnPage] = useState<number>(1);
+  const [hsnPageSize, setHsnPageSize] = useState<number>(5);
+
+  const filteredCirculars = useMemo(() => {
+    return mockCirculars.filter(c => {
+      const matchesSearch = c.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                            c.number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            c.summary.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesType = selectedType === 'ALL' || c.type === selectedType;
+      return matchesSearch && matchesType;
+    });
+  }, [searchQuery, selectedType]);
+
+  const totalUpdatesPages = Math.max(1, Math.ceil(filteredCirculars.length / updatesPageSize));
+  const safeUpdatesPage = Math.min(updatesPage, totalUpdatesPages);
+
+  const paginatedCirculars = useMemo(() => {
+    const start = (safeUpdatesPage - 1) * updatesPageSize;
+    return filteredCirculars.slice(start, start + updatesPageSize);
+  }, [filteredCirculars, safeUpdatesPage, updatesPageSize]);
+
+  const filteredHsn = useMemo(() => {
+    return mockHsnImpacts.filter(h => {
+      return h.hsnCode.includes(searchQuery) || h.description.toLowerCase().includes(searchQuery.toLowerCase());
+    });
+  }, [searchQuery]);
+
+  const totalHsnPages = Math.max(1, Math.ceil(filteredHsn.length / hsnPageSize));
+  const safeHsnPage = Math.min(hsnPage, totalHsnPages);
+
+  const paginatedHsn = useMemo(() => {
+    const start = (safeHsnPage - 1) * hsnPageSize;
+    return filteredHsn.slice(start, start + hsnPageSize);
+  }, [filteredHsn, safeHsnPage, hsnPageSize]);
 
   const getImpactColor = (level: string) => {
     switch (level) {
@@ -227,7 +386,11 @@ const RegulatoryIntelligencePage: React.FC = () => {
                   type="text"
                   placeholder="Search keywords..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setUpdatesPage(1);
+                    setHsnPage(1);
+                  }}
                   className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                 />
               </div>
@@ -237,7 +400,10 @@ const RegulatoryIntelligencePage: React.FC = () => {
                   <label className="text-xs font-bold text-slate-700">Update Type</label>
                   <select
                     value={selectedType}
-                    onChange={(e) => setSelectedType(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedType(e.target.value);
+                      setUpdatesPage(1);
+                    }}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:border-indigo-500"
                   >
                     <option value="ALL">All Types</option>
@@ -257,7 +423,7 @@ const RegulatoryIntelligencePage: React.FC = () => {
           
           {activeTab === 'UPDATES' && (
             <div className="space-y-4">
-              {filteredCirculars.map(circular => (
+              {paginatedCirculars.map(circular => (
                 <div key={circular.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow group relative overflow-hidden">
                   
                   {/* Status Indicator Stripe */}
@@ -323,6 +489,23 @@ const RegulatoryIntelligencePage: React.FC = () => {
                   <p className="text-slate-500 mt-1">Try adjusting your search criteria.</p>
                 </div>
               )}
+
+              {filteredCirculars.length > 0 && (
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mt-4">
+                  <TxCompliancePagination
+                    currentPage={safeUpdatesPage}
+                    totalItems={filteredCirculars.length}
+                    pageSize={updatesPageSize}
+                    onPageChange={(page) => setUpdatesPage(page)}
+                    onPageSizeChange={(newSize) => {
+                      setUpdatesPageSize(newSize);
+                      setUpdatesPage(1);
+                    }}
+                    itemLabel="circulars & notifications"
+                    pageSizeOptions={[5, 10, 20]}
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -343,7 +526,7 @@ const RegulatoryIntelligencePage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
-                    {filteredHsn.map((hsn, i) => (
+                    {paginatedHsn.map((hsn, i) => (
                       <tr key={i} className="hover:bg-slate-50 transition-colors">
                         <td className="py-4 px-6 font-mono font-bold text-indigo-600">
                           {hsn.hsnCode}
@@ -382,6 +565,20 @@ const RegulatoryIntelligencePage: React.FC = () => {
                   </div>
                 )}
               </div>
+              {filteredHsn.length > 0 && (
+                <TxCompliancePagination
+                  currentPage={safeHsnPage}
+                  totalItems={filteredHsn.length}
+                  pageSize={hsnPageSize}
+                  onPageChange={(page) => setHsnPage(page)}
+                  onPageSizeChange={(newSize) => {
+                    setHsnPageSize(newSize);
+                    setHsnPage(1);
+                  }}
+                  itemLabel="HSN rate records"
+                  pageSizeOptions={[5, 10, 20]}
+                />
+              )}
             </div>
           )}
 

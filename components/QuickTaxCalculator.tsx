@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Calculator, X, IndianRupee, ArrowRight, CheckCircle2, Percent, ListFilter, ExternalLink } from 'lucide-react';
+import { Calculator, X, IndianRupee, ArrowRight, CheckCircle2, Percent, ListFilter, ExternalLink, Check } from 'lucide-react';
 import { HSN_DIRECTORY } from '../data/hsnData';
 import { HSNCode } from '../types';
 
@@ -10,10 +11,12 @@ interface QuickTaxCalculatorProps {
 }
 
 const QuickTaxCalculator: React.FC<QuickTaxCalculatorProps> = ({ isOpen, onClose }) => {
+  const navigate = useNavigate();
   const [baseAmount, setBaseAmount] = useState<string>('');
   const [selectedItem, setSelectedItem] = useState<HSNCode | null>(null);
   const [isInterstate, setIsInterstate] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isAppliedSuccess, setIsAppliedSuccess] = useState(false);
 
   const filteredHsn = HSN_DIRECTORY.filter(item => 
     item.code.includes(searchQuery) || item.description.toLowerCase().includes(searchQuery.toLowerCase())
@@ -23,6 +26,60 @@ const QuickTaxCalculator: React.FC<QuickTaxCalculatorProps> = ({ isOpen, onClose
   const taxRate = selectedItem ? selectedItem.taxRate : 0;
   const taxAmount = (amount * taxRate) / 100;
   const totalAmount = amount + taxAmount;
+
+  const handleApplyToDraft = () => {
+    const taxableVal = amount > 0 ? amount : 0;
+    const itemDesc = selectedItem?.description || (searchQuery ? searchQuery : 'Estimated Taxable Item');
+    const hsnCode = selectedItem?.code || '';
+    
+    const draftLineItem = {
+      id: `draft-calc-${Date.now()}`,
+      description: itemDesc,
+      hsnSac: hsnCode,
+      quantity: 1,
+      unit: 'PCS',
+      rate: taxableVal,
+      taxRate: taxRate,
+      taxableValue: taxableVal,
+      taxAmount: taxAmount,
+      cgst: isInterstate ? 0 : taxAmount / 2,
+      sgst: isInterstate ? 0 : taxAmount / 2,
+      igst: isInterstate ? taxAmount : 0,
+      total: totalAmount,
+      isInterstate: isInterstate,
+    };
+
+    // Store in sessionStorage to ensure retrieval across any router context
+    try {
+      sessionStorage.setItem('taxflow_quick_tax_draft_item', JSON.stringify(draftLineItem));
+    } catch (e) {
+      console.warn('Could not save draft to sessionStorage', e);
+    }
+
+    setIsAppliedSuccess(true);
+
+    setTimeout(() => {
+      onClose();
+      setIsAppliedSuccess(false);
+      navigate('/invoices', {
+        state: {
+          openDraft: true,
+          prefilledDraftItem: draftLineItem,
+        }
+      });
+    }, 450);
+  };
+
+  const handleOpenFullCalculator = () => {
+    onClose();
+    navigate('/rate-calculator', {
+      state: {
+        prefilledAmount: baseAmount || undefined,
+        prefilledHsnCode: selectedItem?.code || undefined,
+        isInterstate: isInterstate,
+      }
+    });
+  };
 
   return (
     <AnimatePresence>
@@ -215,20 +272,33 @@ const QuickTaxCalculator: React.FC<QuickTaxCalculatorProps> = ({ isOpen, onClose
             {/* Footer */}
             <div className="p-5 border-t border-slate-100 bg-slate-50 space-y-2">
               <button 
-                onClick={onClose}
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md transition-all flex items-center justify-center gap-2"
+                type="button"
+                onClick={handleApplyToDraft}
+                className={`w-full py-3 text-white rounded-xl text-sm font-bold shadow-md transition-all flex items-center justify-center gap-2 ${
+                  isAppliedSuccess 
+                    ? 'bg-emerald-600 hover:bg-emerald-700' 
+                    : 'bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99]'
+                }`}
               >
-                Apply to Draft <ArrowRight size={16} />
+                {isAppliedSuccess ? (
+                  <>
+                    <Check size={18} className="text-white" />
+                    <span>Applied to Draft! Opening...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Apply to Draft</span>
+                    <ArrowRight size={16} />
+                  </>
+                )}
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  onClose();
-                  window.location.hash = '/rate-calculator';
-                }}
-                className="w-full py-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
+                onClick={handleOpenFullCalculator}
+                className="w-full py-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 active:scale-[0.99]"
               >
-                Open Full GST Rate Calculator Tool <ExternalLink size={14} />
+                <span>Open Full GST Rate Calculator Tool</span>
+                <ExternalLink size={14} />
               </button>
             </div>
             

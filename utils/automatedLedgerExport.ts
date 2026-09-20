@@ -255,7 +255,7 @@ export function getLedgerArchiveHistory(): LedgerArchiveRecord[] {
     const raw = localStorage.getItem(STORAGE_KEY_HISTORY);
     if (raw) {
       const parsed: LedgerArchiveRecord[] = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length >= 3) {
+      if (Array.isArray(parsed) && parsed.length >= 10) {
         return parsed;
       }
     }
@@ -419,6 +419,240 @@ export function getLedgerArchiveHistory(): LedgerArchiveRecord[] {
         filingArn: 'AA270326099182Z'
       },
       retentionExpiryDate: '2032-04-01T00:05:00.000Z',
+      actor: 'Automated Compliance Engine'
+    },
+    {
+      id: 'ARCHIVE-2026-02',
+      period: '2026-02',
+      periodLabel: 'February 2026',
+      financialYear: 'FY 2025-26',
+      timestamp: '2026-03-01T00:05:00.000Z',
+      recordCount: 36,
+      fileSize: '42.1 KB',
+      format: 'JSON',
+      sha256Hash: '9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b',
+      certificateId: 'CERT-CBIC-SEC35-2026-02-2810',
+      filename: 'TaxFlow-Ledger-Archive-2026-02-9a8b7c6d.json',
+      downloadCount: 1,
+      status: 'VERIFIED_ARCHIVED',
+      summary: {
+        cashBalance: 230000,
+        creditBalance: 1680000,
+        totalLiability: 1420000,
+        itcClaimed: 1210000,
+        challanCount: 3,
+        reconciliationStatus: 'MATCHED_100',
+        filingArn: 'AA270226051289W'
+      },
+      retentionExpiryDate: '2032-03-01T00:05:00.000Z',
+      actor: 'Automated Compliance Engine'
+    },
+    {
+      id: 'ARCHIVE-2026-01',
+      period: '2026-01',
+      periodLabel: 'January 2026',
+      financialYear: 'FY 2025-26',
+      timestamp: '2026-02-01T00:05:00.000Z',
+      recordCount: 40,
+      fileSize: '47.5 KB',
+      format: 'EXCEL',
+      sha256Hash: '1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b',
+      certificateId: 'CERT-CBIC-SEC35-2026-01-1923',
+      filename: 'TaxFlow-Ledger-Archive-2026-01-1a2b3c4d.xlsx',
+      downloadCount: 2,
+      status: 'VERIFIED_ARCHIVED',
+      summary: {
+        cashBalance: 310000,
+        creditBalance: 1590000,
+        totalLiability: 1350000,
+        itcClaimed: 1180000,
+        challanCount: 2,
+        reconciliationStatus: 'MATCHED_100',
+        filingArn: 'AA270126088219V'
+      },
+      retentionExpiryDate: '2032-02-01T00:05:00.000Z',
+      actor: 'Automated Compliance Engine'
+    },
+    {
+      id: 'ARCHIVE-2025-12',
+      period: '2025-12',
+      periodLabel: 'December 2025',
+      financialYear: 'FY 2025-26',
+      timestamp: '2026-01-01T00:05:00.000Z',
+      recordCount: 48,
+      fileSize: '53.2 KB',
+      format: 'JSON',
+      sha256Hash: '3f4e5d6c7b8a90123456789abcdef0123456789abcdef0123456789abcdef012',
+      certificateId: 'CERT-CBIC-SEC35-2025-12-8711',
+      filename: 'TaxFlow-Ledger-Archive-2025-12-3f4e5d6c.json',
+      downloadCount: 3,
+      status: 'VERIFIED_ARCHIVED',
+      summary: {
+        cashBalance: 410000,
+        creditBalance: 1890000,
+        totalLiability: 1720000,
+        itcClaimed: 1450000,
+        challanCount: 4,
+        reconciliationStatus: 'MATCHED_100',
+        filingArn: 'AA271225091238Q'
+      },
+      retentionExpiryDate: '2032-01-01T00:05:00.000Z',
+      actor: 'Automated Compliance Engine'
+    },
+    {
+      id: 'ARCHIVE-2025-11',
+      period: '2025-11',
+      periodLabel: 'November 2025',
+      financialYear: 'FY 2025-26',
+      timestamp: '2025-12-01T00:05:00.000Z',
+      recordCount: 34,
+      fileSize: '39.8 KB',
+      format: 'CSV',
+      sha256Hash: '7b8a9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b',
+      certificateId: 'CERT-CBIC-SEC35-2025-11-7640',
+      filename: 'TaxFlow-Ledger-Archive-2025-11-7b8a9c0d.csv',
+      downloadCount: 1,
+      status: 'VERIFIED_ARCHIVED',
+      summary: {
+        cashBalance: 195000,
+        creditBalance: 1410000,
+        totalLiability: 1210000,
+        itcClaimed: 1050000,
+        challanCount: 2,
+        reconciliationStatus: 'MATCHED_100',
+        filingArn: 'AA271125043912Y'
+      },
+      retentionExpiryDate: '2031-12-01T00:05:00.000Z',
+      actor: 'Automated Compliance Engine'
+    },
+    {
+      id: 'ARCHIVE-2025-10',
+      period: '2025-10',
+      periodLabel: 'October 2025 (Festive Peak)',
+      financialYear: 'FY 2025-26',
+      timestamp: '2025-11-01T00:05:00.000Z',
+      recordCount: 58,
+      fileSize: '65.3 KB',
+      format: 'EXCEL',
+      sha256Hash: '0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e',
+      certificateId: 'CERT-CBIC-SEC35-2025-10-6590',
+      filename: 'TaxFlow-Ledger-Archive-2025-10-0d1e2f3a.xlsx',
+      downloadCount: 4,
+      status: 'VERIFIED_ARCHIVED',
+      summary: {
+        cashBalance: 510000,
+        creditBalance: 2150000,
+        totalLiability: 1980000,
+        itcClaimed: 1750000,
+        challanCount: 5,
+        reconciliationStatus: 'MATCHED_100',
+        filingArn: 'AA271025068201U'
+      },
+      retentionExpiryDate: '2031-11-01T00:05:00.000Z',
+      actor: 'Automated Compliance Engine'
+    },
+    {
+      id: 'ARCHIVE-2025-09',
+      period: '2025-09',
+      periodLabel: 'September 2025 (H1 Close)',
+      financialYear: 'FY 2025-26',
+      timestamp: '2025-10-01T00:05:00.000Z',
+      recordCount: 44,
+      fileSize: '49.1 KB',
+      format: 'JSON',
+      sha256Hash: '2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a',
+      certificateId: 'CERT-CBIC-SEC35-2025-09-5482',
+      filename: 'TaxFlow-Ledger-Archive-2025-09-2f3a4b5c.json',
+      downloadCount: 2,
+      status: 'VERIFIED_ARCHIVED',
+      summary: {
+        cashBalance: 275000,
+        creditBalance: 1630000,
+        totalLiability: 1460000,
+        itcClaimed: 1240000,
+        challanCount: 3,
+        reconciliationStatus: 'MATCHED_100',
+        filingArn: 'AA270925019842X'
+      },
+      retentionExpiryDate: '2031-10-01T00:05:00.000Z',
+      actor: 'Automated Compliance Engine'
+    },
+    {
+      id: 'ARCHIVE-2025-08',
+      period: '2025-08',
+      periodLabel: 'August 2025',
+      financialYear: 'FY 2025-26',
+      timestamp: '2025-09-01T00:05:00.000Z',
+      recordCount: 37,
+      fileSize: '43.4 KB',
+      format: 'JSON',
+      sha256Hash: '4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c',
+      certificateId: 'CERT-CBIC-SEC35-2025-08-4390',
+      filename: 'TaxFlow-Ledger-Archive-2025-08-4b5c6d7e.json',
+      downloadCount: 1,
+      status: 'VERIFIED_ARCHIVED',
+      summary: {
+        cashBalance: 240000,
+        creditBalance: 1540000,
+        totalLiability: 1320000,
+        itcClaimed: 1120000,
+        challanCount: 2,
+        reconciliationStatus: 'MATCHED_100',
+        filingArn: 'AA270825034190M'
+      },
+      retentionExpiryDate: '2031-09-01T00:05:00.000Z',
+      actor: 'Automated Compliance Engine'
+    },
+    {
+      id: 'ARCHIVE-2025-07',
+      period: '2025-07',
+      periodLabel: 'July 2025',
+      financialYear: 'FY 2025-26',
+      timestamp: '2025-08-01T00:05:00.000Z',
+      recordCount: 39,
+      fileSize: '45.7 KB',
+      format: 'EXCEL',
+      sha256Hash: '6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e',
+      certificateId: 'CERT-CBIC-SEC35-2025-07-3210',
+      filename: 'TaxFlow-Ledger-Archive-2025-07-6d7e8f9a.xlsx',
+      downloadCount: 2,
+      status: 'VERIFIED_ARCHIVED',
+      summary: {
+        cashBalance: 290000,
+        creditBalance: 1610000,
+        totalLiability: 1410000,
+        itcClaimed: 1190000,
+        challanCount: 3,
+        reconciliationStatus: 'MATCHED_100',
+        filingArn: 'AA270725078129K'
+      },
+      retentionExpiryDate: '2031-08-01T00:05:00.000Z',
+      actor: 'Automated Compliance Engine'
+    },
+    {
+      id: 'ARCHIVE-2025-06',
+      period: '2025-06',
+      periodLabel: 'June 2025',
+      financialYear: 'FY 2025-26',
+      timestamp: '2025-07-01T00:05:00.000Z',
+      recordCount: 33,
+      fileSize: '38.6 KB',
+      format: 'CSV',
+      sha256Hash: '8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a',
+      certificateId: 'CERT-CBIC-SEC35-2025-06-2109',
+      filename: 'TaxFlow-Ledger-Archive-2025-06-8f9a0b1c.csv',
+      downloadCount: 1,
+      status: 'VERIFIED_ARCHIVED',
+      summary: {
+        cashBalance: 185000,
+        creditBalance: 1390000,
+        totalLiability: 1180000,
+        itcClaimed: 990000,
+        challanCount: 2,
+        reconciliationStatus: 'MATCHED_100',
+        filingArn: 'AA270625056712J'
+      },
+      retentionExpiryDate: '2031-07-01T00:05:00.000Z',
       actor: 'Automated Compliance Engine'
     }
   ];

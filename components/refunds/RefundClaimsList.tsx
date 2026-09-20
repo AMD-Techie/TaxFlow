@@ -19,9 +19,13 @@ import {
   ArrowUpRight,
   TrendingUp,
   XCircle,
-  FileCheck
+  FileCheck,
+  Printer,
+  FileDown
 } from 'lucide-react';
 import { ItcRefundClaim, RefundCategory, RefundProcessingStatus } from '../../services/refundService';
+import { RefundDossierGenerator } from '../../services/refundDossierGenerator';
+import { TxCompliancePagination } from '../TxCompliancePagination';
 
 interface RefundClaimsListProps {
   claims: ItcRefundClaim[];
@@ -40,6 +44,8 @@ export const RefundClaimsList: React.FC<RefundClaimsListProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [selectedStatusGroup, setSelectedStatusGroup] = useState<string>('ALL');
   const [viewMode, setViewMode] = useState<'TABLE' | 'CARDS'>('TABLE');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(5);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -238,6 +244,14 @@ export const RefundClaimsList: React.FC<RefundClaimsListProps> = ({
     });
   }, [claims, searchTerm, selectedCategory, selectedStatusGroup]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredClaims.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+
+  const paginatedClaims = useMemo(() => {
+    const start = (safeCurrentPage - 1) * pageSize;
+    return filteredClaims.slice(start, start + pageSize);
+  }, [filteredClaims, safeCurrentPage, pageSize]);
+
   return (
     <div className="space-y-4">
       {/* Control Bar: Search, Filters, New Application, Export */}
@@ -250,7 +264,10 @@ export const RefundClaimsList: React.FC<RefundClaimsListProps> = ({
               type="text"
               placeholder="Search by ARN, Tax Period, Category, or Officer..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
               className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:border-blue-500 focus:bg-white transition-all font-medium text-slate-800 placeholder-slate-400"
             />
           </div>
@@ -258,7 +275,10 @@ export const RefundClaimsList: React.FC<RefundClaimsListProps> = ({
           {/* Category Dropdown */}
           <select
             value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
+            onChange={(e) => {
+              setSelectedCategory(e.target.value);
+              setCurrentPage(1);
+            }}
             className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 focus:outline-hidden focus:border-blue-500"
           >
             <option value="ALL">All Categories</option>
@@ -279,7 +299,10 @@ export const RefundClaimsList: React.FC<RefundClaimsListProps> = ({
             ].map((st) => (
               <button
                 key={st.id}
-                onClick={() => setSelectedStatusGroup(st.id)}
+                onClick={() => {
+                  setSelectedStatusGroup(st.id);
+                  setCurrentPage(1);
+                }}
                 className={`px-2.5 py-1 rounded-lg text-xs transition-all ${
                   selectedStatusGroup === st.id
                     ? 'bg-white text-slate-900 shadow-xs font-bold'
@@ -327,8 +350,8 @@ export const RefundClaimsList: React.FC<RefundClaimsListProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredClaims.length > 0 ? (
-                filteredClaims.map((claim) => (
+              {paginatedClaims.length > 0 ? (
+                paginatedClaims.map((claim) => (
                   <tr
                     key={claim.id}
                     onClick={() => onSelectClaim(claim)}
@@ -424,15 +447,28 @@ export const RefundClaimsList: React.FC<RefundClaimsListProps> = ({
 
                     {/* Action */}
                     <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSelectClaim(claim);
-                        }}
-                        className="px-3 py-1.5 bg-slate-50 group-hover:bg-blue-600 group-hover:text-white rounded-xl text-slate-700 text-xs font-bold transition-all border border-slate-200 group-hover:border-blue-600 shadow-2xs"
-                      >
-                        Inspect
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            RefundDossierGenerator.printRefundDossier(claim);
+                          }}
+                          className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-lg text-xs transition-colors border border-slate-200 cursor-pointer shadow-2xs"
+                          title="Quick Print Dossier (PDF)"
+                          aria-label="Quick Print Dossier"
+                        >
+                          <Printer size={14} />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectClaim(claim);
+                          }}
+                          className="px-3 py-1.5 bg-slate-50 group-hover:bg-blue-600 group-hover:text-white rounded-xl text-slate-700 text-xs font-bold transition-all border border-slate-200 group-hover:border-blue-600 shadow-2xs cursor-pointer"
+                        >
+                          Inspect
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -448,6 +484,20 @@ export const RefundClaimsList: React.FC<RefundClaimsListProps> = ({
             </tbody>
           </table>
         </div>
+        {filteredClaims.length > 0 && (
+          <TxCompliancePagination
+            currentPage={safeCurrentPage}
+            totalItems={filteredClaims.length}
+            pageSize={pageSize}
+            onPageChange={(page) => setCurrentPage(page)}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setCurrentPage(1);
+            }}
+            itemLabel="refund claims"
+            pageSizeOptions={[5, 10, 20, 50]}
+          />
+        )}
       </div>
     </div>
   );

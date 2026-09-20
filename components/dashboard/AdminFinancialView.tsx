@@ -12,6 +12,7 @@ import {
   Building2, Layers, CheckCircle2, ChevronRight, ArrowRight, Eye, Building
 } from 'lucide-react';
 import StatCard from './StatCard';
+import MonthlyGstSummaryTableWithChart from './MonthlyGstSummaryTableWithChart';
 
 interface AdminFinancialViewProps {
   stats: any;
@@ -385,9 +386,9 @@ const AdminFinancialView: React.FC<AdminFinancialViewProps> = ({
       </div>
 
       {/* Main Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Trend Chart */}
-        <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+        <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-xs border border-slate-200 flex flex-col justify-between">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
             <div>
               <div className="flex items-center gap-2">
@@ -451,7 +452,7 @@ const AdminFinancialView: React.FC<AdminFinancialViewProps> = ({
         </div>
 
         {/* Utilization Mix */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col relative overflow-hidden">
+        <div className="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 flex flex-col justify-between relative overflow-hidden">
           <div className="flex justify-between items-start mb-2 z-10">
              <div>
                 <div className="flex items-center gap-2">
@@ -495,14 +496,14 @@ const AdminFinancialView: React.FC<AdminFinancialViewProps> = ({
             </div>
           </div>
           
-          <div className="space-y-3 z-10">
+          <div className="space-y-2.5 z-10 pt-2 border-t border-slate-100">
               {(analytics?.utilization || []).map((item: any, i: number) => (
-                  <div key={i} className="flex justify-between items-center p-3 rounded-lg bg-slate-50/50 border border-slate-100">
+                  <div key={i} className="flex justify-between items-center p-2.5 rounded-xl bg-slate-50/80 border border-slate-200/70">
                       <div className="flex items-center gap-2">
-                          <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{backgroundColor: item.color}}></div>
+                          <div className="w-2.5 h-2.5 rounded-full shadow-xs" style={{backgroundColor: item.color}}></div>
                           <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{item.name}</span>
                       </div>
-                      <span className="font-bold text-slate-900 text-sm">₹{item.value.toLocaleString()}</span>
+                      <span className="font-bold text-slate-900 text-sm font-mono">₹{item.value.toLocaleString()}</span>
                   </div>
               ))}
           </div>
@@ -510,12 +511,12 @@ const AdminFinancialView: React.FC<AdminFinancialViewProps> = ({
       </div>
 
       {/* ENHANCED SECTION: PERIOD-OVER-PERIOD TAX LIABILITY TREND LINE CHART */}
-      <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100 space-y-6">
+      <div className="bg-white p-6 md:p-8 rounded-2xl shadow-xs border border-slate-200 space-y-6">
         {/* Header & Control Options */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200/80 pb-5">
           <div className="flex items-start gap-3">
-            <div className="p-3 bg-amber-50 rounded-2xl border border-amber-100 text-amber-600 shrink-0">
-              <TrendingUp size={22} />
+            <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center shrink-0 shadow-xs">
+              <TrendingUp size={20} />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -556,9 +557,9 @@ const AdminFinancialView: React.FC<AdminFinancialViewProps> = ({
 
         {/* KPI Metrics Highlight Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-1">
+          <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/70 flex flex-col justify-between min-h-[105px]">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Latest Net Liability</span>
-            <div className="flex items-baseline justify-between">
+            <div className="flex items-baseline justify-between my-1">
               <span className="text-xl font-black text-slate-900 font-mono">
                 ₹{(latestMonth?.liability || 0).toLocaleString()}
               </span>
@@ -574,9 +575,9 @@ const AdminFinancialView: React.FC<AdminFinancialViewProps> = ({
             <p className="text-[10px] text-slate-400 font-medium">Vs. previous {periodLabel.toLowerCase()} (₹{(previousMonth?.liability || 0).toLocaleString()})</p>
           </div>
 
-          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-1">
+          <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/70 flex flex-col justify-between min-h-[105px]">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Average {isWeekly ? 'Weekly' : isQuarterly ? 'Quarterly' : 'Monthly'} Liability</span>
-            <div className="flex items-baseline justify-between">
+            <div className="flex items-baseline justify-between my-1">
               <span className="text-xl font-black text-slate-900 font-mono">
                 ₹{avgLiability.toLocaleString()}
               </span>
@@ -585,26 +586,26 @@ const AdminFinancialView: React.FC<AdminFinancialViewProps> = ({
             <p className="text-[10px] text-slate-400 font-medium">Across {processedData.length} monitored {isWeekly ? 'weeks' : isQuarterly ? 'quarters' : 'periods'}</p>
           </div>
 
-          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-1">
+          <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/70 flex flex-col justify-between min-h-[105px]">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Peak Liability {periodLabel}</span>
-            <div className="flex items-baseline justify-between">
-              <span className="text-xl font-black text-slate-900 font-mono">
+            <div className="flex items-baseline justify-between my-1">
+              <span className="text-xl font-black text-slate-900 font-mono truncate mr-2">
                 {peakMonth ? peakMonth.name : 'N/A'}
               </span>
-              <span className="text-xs font-extrabold text-rose-600 font-mono">
+              <span className="text-xs font-extrabold text-rose-600 font-mono shrink-0">
                 ₹{(peakMonth?.liability || 0).toLocaleString()}
               </span>
             </div>
             <p className="text-[10px] text-slate-400 font-medium">Highest tax outflow period</p>
           </div>
 
-          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-1">
+          <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/70 flex flex-col justify-between min-h-[105px]">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Overall ITC Offset Ratio</span>
-            <div className="flex items-baseline justify-between">
+            <div className="flex items-baseline justify-between my-1">
               <span className="text-xl font-black text-emerald-600 font-mono">
                 {overallItcOffsetPct}%
               </span>
-              <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+              <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                 High Coverage
               </span>
             </div>
@@ -737,11 +738,11 @@ const AdminFinancialView: React.FC<AdminFinancialViewProps> = ({
               const isZero = m.momChange === 0;
 
               return (
-                <div key={idx} className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
+                <div key={idx} className="p-3 rounded-xl bg-slate-50/80 border border-slate-200/70 flex flex-col justify-between min-h-[82px] hover:border-slate-300 transition-colors">
                   <div className="flex justify-between items-center text-[11px]">
                     <span className="font-black text-slate-700 uppercase">{m.name}</span>
                     {idx > 0 ? (
-                      <span className={`font-extrabold text-[10px] flex items-center ${
+                      <span className={`font-extrabold text-[10px] flex items-center gap-0.5 ${
                         isIncrease ? 'text-amber-600' : isZero ? 'text-slate-400' : 'text-emerald-600'
                       }`}>
                         {isIncrease ? '▲' : isZero ? '•' : '▼'} {Math.abs(m.momChangePct)}%
@@ -750,10 +751,10 @@ const AdminFinancialView: React.FC<AdminFinancialViewProps> = ({
                       <span className="text-[9px] text-slate-400 font-bold uppercase">Base</span>
                     )}
                   </div>
-                  <p className="text-xs font-mono font-bold text-slate-900">
+                  <p className="text-xs font-mono font-bold text-slate-900 my-0.5">
                     ₹{m.liability.toLocaleString()}
                   </p>
-                  <p className="text-[9px] text-slate-400 flex justify-between">
+                  <p className="text-[10px] text-slate-400 flex justify-between font-mono">
                     <span>ITC: ₹{m.itc.toLocaleString()}</span>
                   </p>
                 </div>
@@ -762,6 +763,15 @@ const AdminFinancialView: React.FC<AdminFinancialViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* DEDICATED MONTHLY GST SUMMARY TABLE & DIRECT RECHARTS BAR CHART COMPARISON */}
+      <MonthlyGstSummaryTableWithChart
+        data={analytics?.monthlyTrend || []}
+        timeRange={timeRange}
+        isAggregate={isAggregate}
+        entityName={currentTenant?.name || 'Company'}
+        gstin={currentTenant?.gstin}
+      />
     </div>
   );
 };

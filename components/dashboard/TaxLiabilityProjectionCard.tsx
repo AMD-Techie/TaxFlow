@@ -302,7 +302,7 @@ export const TaxLiabilityProjectionCard: React.FC<TaxLiabilityProjectionCardProp
   return (
     <div 
       id="tax-liability-projection-card"
-      className="bg-white rounded-2xl border border-slate-200/90 shadow-subtle overflow-hidden hover:shadow-card transition-all duration-300 relative group"
+      className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden transition-all duration-300 relative group"
     >
       {/* Header Accent Strip */}
       <div className="h-1.5 w-full bg-gradient-to-r from-blue-700 via-indigo-600 to-amber-500" />

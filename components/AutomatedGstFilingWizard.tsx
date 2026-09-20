@@ -499,7 +499,7 @@ export const AutomatedGstFilingWizard: React.FC<AutomatedGstFilingWizardProps> =
         tenantGstin: selectedGstin,
         period,
         returnType,
-        computationSummary: computation,
+        computationSummary: computation as any,
         invoices,
         signatory: {
           ...selectedSignatory,

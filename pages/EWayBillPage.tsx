@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store/store';
@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { Invoice, EWayBill, UserRole } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
+import { EWayBillPagination } from '../components/EWayBillPagination';
 
 export interface Transporter {
   id: string;
@@ -249,6 +250,41 @@ export default function EWayBillPage() {
       return matchesSearch && matchesStatus;
     });
   }, [invoicesWithEwb, searchQuery, filterStatus]);
+
+  // Active EWBs Pagination State
+  const [ewbCurrentPage, setEwbCurrentPage] = useState(1);
+  const [ewbPageSize, setEwbPageSize] = useState(10);
+
+  // Auto-reset page when search query, status filter, or page size changes
+  useEffect(() => {
+    setEwbCurrentPage(1);
+  }, [searchQuery, filterStatus, ewbPageSize]);
+
+  const ewbTotalItems = displayedEwbs.length;
+  const ewbTotalPages = Math.max(1, Math.ceil(ewbTotalItems / ewbPageSize));
+  const safeEwbCurrentPage = Math.min(Math.max(1, ewbCurrentPage), ewbTotalPages);
+
+  const paginatedDisplayedEwbs = useMemo(() => {
+    const start = (safeEwbCurrentPage - 1) * ewbPageSize;
+    return displayedEwbs.slice(start, start + ewbPageSize);
+  }, [displayedEwbs, safeEwbCurrentPage, ewbPageSize]);
+
+  // Bulk Tab Pagination State
+  const [bulkCurrentPage, setBulkCurrentPage] = useState(1);
+  const [bulkPageSize, setBulkPageSize] = useState(10);
+
+  useEffect(() => {
+    setBulkCurrentPage(1);
+  }, [bulkPageSize]);
+
+  const bulkTotalItems = eligibleInvoices.length;
+  const bulkTotalPages = Math.max(1, Math.ceil(bulkTotalItems / bulkPageSize));
+  const safeBulkCurrentPage = Math.min(Math.max(1, bulkCurrentPage), bulkTotalPages);
+
+  const paginatedEligibleInvoices = useMemo(() => {
+    const start = (safeBulkCurrentPage - 1) * bulkPageSize;
+    return eligibleInvoices.slice(start, start + bulkPageSize);
+  }, [eligibleInvoices, safeBulkCurrentPage, bulkPageSize]);
 
   // Mutations
   const generateMutation = useMutation({
@@ -727,7 +763,7 @@ export default function EWayBillPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {displayedEwbs.map(inv => {
+                  {paginatedDisplayedEwbs.map(inv => {
                     const ewb = inv.ewayBillDetails!;
                     return (
                       <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors group">
@@ -864,6 +900,18 @@ export default function EWayBillPage() {
                 </tbody>
               </table>
             </div>
+
+            {displayedEwbs.length > 0 && (
+              <EWayBillPagination
+                currentPage={ewbCurrentPage}
+                totalItems={ewbTotalItems}
+                pageSize={ewbPageSize}
+                onPageChange={setEwbCurrentPage}
+                onPageSizeChange={setEwbPageSize}
+                itemLabel="e-way bills"
+                pageSizeOptions={[5, 10, 20, 50, 100]}
+              />
+            )}
           </div>
         </div>
       )}
@@ -1316,7 +1364,7 @@ export default function EWayBillPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {eligibleInvoices.map(inv => {
+                  {paginatedEligibleInvoices.map(inv => {
                     const isSelected = bulkSelectedInvoiceIds.includes(inv.id);
                     return (
                       <tr 
@@ -1350,6 +1398,18 @@ export default function EWayBillPage() {
                   )}
                 </tbody>
               </table>
+
+              {eligibleInvoices.length > 0 && (
+                <EWayBillPagination
+                  currentPage={bulkCurrentPage}
+                  totalItems={bulkTotalItems}
+                  pageSize={bulkPageSize}
+                  onPageChange={setBulkCurrentPage}
+                  onPageSizeChange={setBulkPageSize}
+                  itemLabel="pending invoices"
+                  pageSizeOptions={[5, 10, 20, 50, 100]}
+                />
+              )}
             </div>
           </div>
 

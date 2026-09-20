@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store/store';
 import { 
@@ -20,7 +20,10 @@ import {
   X, 
   UserCheck, 
   Sparkles, 
+  ChevronLeft,
   ChevronRight, 
+  ChevronsLeft,
+  ChevronsRight,
   HelpCircle,
   TrendingDown,
   Info,
@@ -175,6 +178,185 @@ const INITIAL_EXCEPTIONS: GstExceptionItem[] = [
     status: 'RESOLVED',
     recommendedAction: 'Transit delivery logs and toll records verified and attached to audit dossier.',
     itcImpact: 0
+  },
+  {
+    id: 'EXC-2026-007',
+    tenantId: 't1',
+    invoiceNumber: 'AUTO-CORP-552',
+    invoiceDate: '2026-08-14',
+    vendorName: 'Executive Motor Leasing Ltd',
+    vendorGstin: '27AABCM6677K1Z4',
+    exceptionType: 'BLOCKED_ITC_17_5',
+    title: 'Blocked ITC on Motor Vehicle for Passenger Transport (Sec 17(5)(a))',
+    description: 'Motor vehicle leasing (<13 passenger capacity) billed with ₹54,000 IGST. Blocked under statutory Section 17(5)(a).',
+    severity: 'HIGH',
+    prTaxableValue: 300000,
+    prTaxAmount: 54000,
+    varianceAmount: 54000,
+    detectedAt: '2026-08-16 11:05',
+    status: 'OPEN',
+    recommendedAction: 'Reclassify expense to Ineligible ITC Table 4(B)(1) during GSTR-3B return compilation.',
+    itcImpact: 54000
+  },
+  {
+    id: 'EXC-2026-008',
+    tenantId: 't1',
+    invoiceNumber: 'DEL-INV-9901',
+    invoiceDate: '2026-08-15',
+    vendorName: 'Delta Infra Projects LLP',
+    vendorGstin: '07AAACD9900L1Z3',
+    exceptionType: 'SUPPLIER_DELINQUENT',
+    title: 'Supplier GSTIN Cancelled / Suspended as per GSTN Portal Record',
+    description: 'GST portal live check returned status CANCELLED on 01-08-2026. Invoice generated subsequent to statutory cancellation.',
+    severity: 'CRITICAL',
+    prTaxableValue: 620000,
+    prTaxAmount: 111600,
+    portalTaxableValue: 0,
+    portalTaxAmount: 0,
+    varianceAmount: 111600,
+    detectedAt: '2026-08-16 15:40',
+    status: 'OPEN',
+    recommendedAction: 'Immediate payment freeze. Inward ITC inadmissible for post-cancellation supply dates.',
+    itcImpact: 111600
+  },
+  {
+    id: 'EXC-2026-009',
+    tenantId: 't1',
+    invoiceNumber: 'INV-POS-4120',
+    invoiceDate: '2026-08-17',
+    vendorName: 'Southern Infotech Services',
+    vendorGstin: '33AABCS8822R1Z7',
+    exceptionType: '2B_MISMATCH',
+    title: 'Place of Supply (POS) Classification Conflict (CGST/SGST vs IGST)',
+    description: 'Supplier in TN (33) supplied to Delhi entity (07) but erroneously booked local TN CGST+SGST instead of IGST.',
+    severity: 'HIGH',
+    prTaxableValue: 240000,
+    prTaxAmount: 43200,
+    portalTaxableValue: 240000,
+    portalTaxAmount: 43200,
+    varianceAmount: 43200,
+    detectedAt: '2026-08-18 10:25',
+    status: 'OPEN',
+    recommendedAction: 'Request supplier GSTR-1 POS amendment from intra-state to inter-state IGST.',
+    itcImpact: 43200
+  },
+  {
+    id: 'EXC-2026-010',
+    tenantId: 't1',
+    invoiceNumber: 'LEGAL-ADV-108',
+    invoiceDate: '2026-08-18',
+    vendorName: 'Verma & Associates Legal Counsel',
+    vendorGstin: '27AABFV4433E1Z1',
+    exceptionType: 'RATE_HSN_ERROR',
+    title: 'Reverse Charge Mechanism (RCM) Liability Unflagged on Legal Fee',
+    description: 'Legal representation services (SAC 9982) liable for compulsory RCM under Section 9(3). Invoice charged forward tax instead.',
+    severity: 'MEDIUM',
+    prTaxableValue: 150000,
+    prTaxAmount: 27000,
+    varianceAmount: 27000,
+    detectedAt: '2026-08-19 14:15',
+    status: 'ASSIGNED',
+    assignedTo: 'Tax Auditor Team',
+    recommendedAction: 'Self-invoice under RCM Table 3.1(d) and pay tax in cash with matching ITC claim in Table 4(A)(3).',
+    itcImpact: 27000
+  },
+  {
+    id: 'EXC-2026-011',
+    tenantId: 't1',
+    invoiceNumber: 'EINV-ERR-883',
+    invoiceDate: '2026-08-19',
+    vendorName: 'Kaveri Microcircuits Pvt Ltd',
+    vendorGstin: '33KAVMS2233M1Z8',
+    exceptionType: 'E_INVOICE_MISSING',
+    title: 'E-Invoice QR Code Digital Signature Verification Hash Mismatch',
+    description: 'NIC digital signature payload decoded does not match invoice header details (amount mismatch of ₹8,200).',
+    severity: 'CRITICAL',
+    prTaxableValue: 360000,
+    prTaxAmount: 64800,
+    varianceAmount: 64800,
+    detectedAt: '2026-08-20 09:10',
+    status: 'OPEN',
+    recommendedAction: 'Reject invoice and require re-generation of signed JSON invoice payload via IRP.',
+    itcImpact: 64800
+  },
+  {
+    id: 'EXC-2026-012',
+    tenantId: 't1',
+    invoiceNumber: 'EWB-MISS-701',
+    invoiceDate: '2026-08-20',
+    vendorName: 'Indo-German Industrial Valves',
+    vendorGstin: '29INVAL4433E1Z3',
+    exceptionType: 'EWAY_EXPIRED',
+    title: 'Inter-State Consignment Exceeding ₹50k Dispatched Without E-Way Bill',
+    description: 'Consignment invoice of ₹1,95,000 crossed Karnataka to Delhi without active Part-A / Part-B EWB generated.',
+    severity: 'HIGH',
+    prTaxableValue: 195000,
+    prTaxAmount: 35100,
+    varianceAmount: 0,
+    detectedAt: '2026-08-21 16:30',
+    status: 'ASSIGNED',
+    assignedTo: 'Logistics Compliance Lead',
+    recommendedAction: 'Verify transit lorry receipt and obtain transporter detention indemnity declaration.',
+    itcImpact: 0
+  },
+  {
+    id: 'EXC-2026-013',
+    tenantId: 't1',
+    invoiceNumber: 'SEC17-MED-304',
+    invoiceDate: '2026-08-21',
+    vendorName: 'Apex Health & Wellness Network',
+    vendorGstin: '27AABCH1199N1Z0',
+    exceptionType: 'BLOCKED_ITC_17_5',
+    title: 'Blocked ITC on Voluntary Employee Life & Health Insurance (Sec 17(5)(b)(iii))',
+    description: 'Premium on employee non-statutory medical policy not mandated by statute. Ineligible for input credit.',
+    severity: 'MEDIUM',
+    prTaxableValue: 180000,
+    prTaxAmount: 32400,
+    varianceAmount: 32400,
+    detectedAt: '2026-08-22 11:50',
+    status: 'OPEN',
+    recommendedAction: 'Reverse credit under Table 4(B)(2) Others in monthly return filing.',
+    itcImpact: 32400
+  },
+  {
+    id: 'EXC-2026-014',
+    tenantId: 't1',
+    invoiceNumber: 'RET-MIS-228',
+    invoiceDate: '2026-08-22',
+    vendorName: 'Pinnacle Cloud Infrastructure',
+    vendorGstin: '27PINCL7788P1Z6',
+    exceptionType: '2B_MISMATCH',
+    title: 'Invoice Reflected in Supplier GSTR-1 but Missing in Recipient GSTR-2B',
+    description: 'Supplier filed GSTR-1 post 14th cutoff date. Document will only accrue in next tax period GSTR-2B.',
+    severity: 'LOW',
+    prTaxableValue: 540000,
+    prTaxAmount: 97200,
+    portalTaxableValue: 0,
+    portalTaxAmount: 0,
+    varianceAmount: 97200,
+    detectedAt: '2026-08-23 13:20',
+    status: 'RESOLVED',
+    recommendedAction: 'Defer ITC claim to September GSTR-2B cycle as per Rule 36(4).',
+    itcImpact: 0
+  },
+  {
+    id: 'EXC-2026-015',
+    tenantId: 't1',
+    invoiceNumber: 'RATE-TXT-502',
+    invoiceDate: '2026-08-23',
+    vendorName: 'Matrix Automation Labs',
+    vendorGstin: '06MATRX6655L1Z2',
+    exceptionType: 'RATE_HSN_ERROR',
+    title: 'HSN 8523 Software Licensing Billed at 28% Instead of 18%',
+    description: 'Information technology software license billed at maximum 28% slab causing excess cash outflow.',
+    severity: 'LOW',
+    prTaxableValue: 88755,
+    prTaxAmount: 24851,
+    varianceAmount: 8875,
+    detectedAt: '2026-08-24 10:00',
+    status: 'OPEN',
+    recommendedAction: 'Request supplier credit note for differential 10% tax amount (₹8,875).',
+    itcImpact: 8875
   }
 ];
 
@@ -190,6 +372,16 @@ export const ExceptionInboxPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
   const [isNotifyModalOpen, setIsNotifyModalOpen] = useState(false);
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(5);
+  const [jumpPageInput, setJumpPageInput] = useState<string>('');
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, typeFilter, severityFilter, statusFilter, pageSize]);
 
   // Stats calculation
   const stats = useMemo(() => {
@@ -219,6 +411,39 @@ export const ExceptionInboxPage: React.FC = () => {
       return matchesSearch && matchesType && matchesSeverity && matchesStatus;
     });
   }, [exceptions, searchQuery, typeFilter, severityFilter, statusFilter]);
+
+  // Pagination Calculations
+  const totalItems = filteredExceptions.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIndex = (safeCurrentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+
+  const paginatedExceptions = useMemo(() => {
+    return filteredExceptions.slice(startIndex, endIndex);
+  }, [filteredExceptions, startIndex, endIndex]);
+
+  const handleJumpSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const pageNum = parseInt(jumpPageInput, 10);
+    if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages) {
+      setCurrentPage(pageNum);
+      setJumpPageInput('');
+    }
+  };
+
+  const getPageNumbers = () => {
+    if (totalPages <= 5) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    if (safeCurrentPage <= 3) {
+      return [1, 2, 3, 4, '...', totalPages];
+    }
+    if (safeCurrentPage >= totalPages - 2) {
+      return [1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+    }
+    return [1, '...', safeCurrentPage - 1, safeCurrentPage, safeCurrentPage + 1, '...', totalPages];
+  };
 
   // Handlers
   const handleUpdateStatus = (id: string, newStatus: GstExceptionItem['status'], reason?: string) => {
@@ -444,7 +669,7 @@ export const ExceptionInboxPage: React.FC = () => {
               </p>
             </div>
           ) : (
-            filteredExceptions.map((item) => {
+            paginatedExceptions.map((item) => {
               const isSelected = selectedException?.id === item.id;
               return (
                 <div
@@ -510,6 +735,130 @@ export const ExceptionInboxPage: React.FC = () => {
                 </div>
               );
             })
+          )}
+
+          {/* Pagination Controls Bar */}
+          {filteredExceptions.length > 0 && (
+            <div className="card-corporate p-3.5 bg-slate-50/80 border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs">
+              {/* Range and Rows Per Page selector */}
+              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 font-medium">
+                <div>
+                  Showing <span className="font-bold text-slate-800">{startIndex + 1}</span> to{' '}
+                  <span className="font-bold text-slate-800">{endIndex}</span> of{' '}
+                  <span className="font-bold text-slate-800">{totalItems}</span> exceptions
+                </div>
+
+                <div className="flex items-center gap-1.5 pl-3 border-l border-slate-200">
+                  <span className="text-slate-400 text-[11px]">Per page:</span>
+                  <div className="flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg p-0.5 shadow-2xs">
+                    {[5, 10, 20, 50].map((size) => (
+                      <button
+                        key={size}
+                        onClick={() => {
+                          setPageSize(size);
+                          setCurrentPage(1);
+                        }}
+                        className={`px-2 py-0.5 text-xs font-bold rounded transition-all ${
+                          pageSize === size
+                            ? 'bg-blue-600 text-white shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                      >
+                        {size}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Page Navigation & Direct Jump */}
+              <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-0.5">
+                  <button
+                    onClick={() => setCurrentPage(1)}
+                    disabled={safeCurrentPage <= 1}
+                    className="p-1 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    title="First Page"
+                  >
+                    <ChevronsLeft size={15} />
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(safeCurrentPage - 1)}
+                    disabled={safeCurrentPage <= 1}
+                    className="p-1 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    title="Previous Page"
+                  >
+                    <ChevronLeft size={15} />
+                  </button>
+
+                  <div className="flex items-center gap-0.5 px-0.5">
+                    {getPageNumbers().map((pageNum, idx) => {
+                      if (pageNum === '...') {
+                        return (
+                          <span key={`ellipsis-${idx}`} className="px-1 text-slate-400 font-bold text-xs select-none">
+                            ...
+                          </span>
+                        );
+                      }
+                      const isCurrent = safeCurrentPage === pageNum;
+                      return (
+                        <button
+                          key={`page-${pageNum}`}
+                          onClick={() => setCurrentPage(Number(pageNum))}
+                          className={`min-w-[24px] h-6 px-1.5 rounded-md text-xs font-bold transition-all ${
+                            isCurrent
+                              ? 'bg-blue-600 text-white shadow-2xs'
+                              : 'text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    onClick={() => setCurrentPage(safeCurrentPage + 1)}
+                    disabled={safeCurrentPage >= totalPages}
+                    className="p-1 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    title="Next Page"
+                  >
+                    <ChevronRight size={15} />
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={safeCurrentPage >= totalPages}
+                    className="p-1 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    title="Last Page"
+                  >
+                    <ChevronsRight size={15} />
+                  </button>
+                </div>
+
+                {/* Direct Page Jump Input */}
+                {totalPages > 1 && (
+                  <form onSubmit={handleJumpSubmit} className="flex items-center gap-1 pl-2 border-l border-slate-200">
+                    <span className="text-[11px] text-slate-400">Go:</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={totalPages}
+                      placeholder={`${safeCurrentPage}`}
+                      value={jumpPageInput}
+                      onChange={(e) => setJumpPageInput(e.target.value)}
+                      className="w-10 h-6 px-1 text-center bg-white border border-slate-200 rounded-md text-xs font-mono font-bold text-slate-800 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 shadow-2xs"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!jumpPageInput.trim()}
+                      className="h-6 px-2 bg-slate-200/70 hover:bg-slate-300/70 disabled:opacity-40 disabled:hover:bg-slate-200/70 text-slate-700 font-bold rounded-md text-xs transition-colors"
+                    >
+                      Go
+                    </button>
+                  </form>
+                )}
+              </div>
+            </div>
           )}
         </div>
 

@@ -31,7 +31,132 @@ export interface WorkflowComment {
   authorEmail: string;
   timestamp: string;
   text: string;
-  actionTaken?: 'SUBMITTED' | 'APPROVED' | 'REVISED' | 'ESCALATED' | 'REJECTED' | 'DISPATCHED';
+  actionTaken?: 'SUBMITTED' | 'APPROVED' | 'REVISED' | 'ESCALATED' | 'REJECTED' | 'DISPATCHED' | 'AUDIT_OBSERVATION' | 'DELEGATED';
+}
+
+// Granular RBAC Permissions for Hierarchical Approval Workflow
+export interface RoleApprovalPermission {
+  role: UserRole;
+  roleLabel: string;
+  canDraft: boolean;
+  canApproveL1: boolean; // Up to singleStageLimit (e.g. ₹5,00,000)
+  canApproveL2: boolean; // High liability (> ₹5,00,000) & Tax Head Sign-off
+  canRequestRevision: boolean;
+  canReject: boolean;
+  canEscalate: boolean;
+  canDispatchToGstn: boolean;
+  canModifyPolicy: boolean;
+  canAuditAndRemark: boolean;
+  maxSingleSignoffAmount: number; // 0 = unlimited, or specific currency ceiling
+  description: string;
+}
+
+export const ROLE_APPROVAL_PERMISSIONS: Record<UserRole, RoleApprovalPermission> = {
+  [UserRole.ACCOUNTANT]: {
+    role: UserRole.ACCOUNTANT,
+    roleLabel: 'Staff Accountant (Preparer)',
+    canDraft: true,
+    canApproveL1: false,
+    canApproveL2: false,
+    canRequestRevision: false,
+    canReject: false,
+    canEscalate: true,
+    canDispatchToGstn: false,
+    canModifyPolicy: false,
+    canAuditAndRemark: false,
+    maxSingleSignoffAmount: 0,
+    description: 'Prepares draft returns, calculates taxes, uploads supporting workpapers, and responds to revision queries. Cannot self-approve (Four-Eyes principle).'
+  },
+  [UserRole.FINANCE_MANAGER]: {
+    role: UserRole.FINANCE_MANAGER,
+    roleLabel: 'Finance Manager (L1 Reviewer)',
+    canDraft: true,
+    canApproveL1: true,
+    canApproveL2: false,
+    canRequestRevision: true,
+    canReject: true,
+    canEscalate: true,
+    canDispatchToGstn: false,
+    canModifyPolicy: false,
+    canAuditAndRemark: true,
+    maxSingleSignoffAmount: 500000,
+    description: 'First-line supervisory approval for filings & ITC adjustments up to ₹5,00,000. Escalates higher liability filings to Tax Head.'
+  },
+  [UserRole.ADMIN]: {
+    role: UserRole.ADMIN,
+    roleLabel: 'Tax Head / Partner (L2 Authority)',
+    canDraft: true,
+    canApproveL1: true,
+    canApproveL2: true,
+    canRequestRevision: true,
+    canReject: true,
+    canEscalate: false,
+    canDispatchToGstn: true,
+    canModifyPolicy: true,
+    canAuditAndRemark: true,
+    maxSingleSignoffAmount: 0, // Unlimited
+    description: 'Principal statutory authority with unrestricted sign-off, dual authorization for high-value liabilities, EVC/DSC dispatch, and policy governance.'
+  },
+  [UserRole.SUPER_ADMIN]: {
+    role: UserRole.SUPER_ADMIN,
+    roleLabel: 'Enterprise Super Admin',
+    canDraft: true,
+    canApproveL1: true,
+    canApproveL2: true,
+    canRequestRevision: true,
+    canReject: true,
+    canEscalate: false,
+    canDispatchToGstn: true,
+    canModifyPolicy: true,
+    canAuditAndRemark: true,
+    maxSingleSignoffAmount: 0,
+    description: 'Full administrative access across all tenant branches, delegation controls, emergency override, and policy matrix management.'
+  },
+  [UserRole.AUDITOR]: {
+    role: UserRole.AUDITOR,
+    roleLabel: 'External / Internal Auditor (Assurance)',
+    canDraft: false,
+    canApproveL1: false,
+    canApproveL2: false,
+    canRequestRevision: false,
+    canReject: false,
+    canEscalate: false,
+    canDispatchToGstn: false,
+    canModifyPolicy: false,
+    canAuditAndRemark: true,
+    maxSingleSignoffAmount: 0,
+    description: 'Independent inspection role. Verifies four-eyes segregation of duties, inspects cryptographic certificates, and logs compliance observations without mutating workflow state.'
+  },
+  [UserRole.VIEWER]: {
+    role: UserRole.VIEWER,
+    roleLabel: 'Executive Viewer (Read-Only)',
+    canDraft: false,
+    canApproveL1: false,
+    canApproveL2: false,
+    canRequestRevision: false,
+    canReject: false,
+    canEscalate: false,
+    canDispatchToGstn: false,
+    canModifyPolicy: false,
+    canAuditAndRemark: false,
+    maxSingleSignoffAmount: 0,
+    description: 'Read-only access for corporate board and management overview of tax liability pipelines and bottleneck analytics.'
+  }
+};
+
+// Delegation of Authority (DOA)
+export interface DelegationOfAuthority {
+  id: string;
+  delegatorRole: UserRole;
+  delegatorName: string;
+  delegatedToRole: UserRole;
+  delegatedToName: string;
+  delegatedToEmail: string;
+  maxApprovalLimit: number; // e.g. 500000
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+  reason: string;
 }
 
 export interface TaxBreakdown {
@@ -120,6 +245,23 @@ export interface ApprovalThresholdConfig {
 
 const LOCAL_STORAGE_KEY = 'TF_APPROVAL_WORKFLOWS_V1';
 const POLICY_CONFIG_KEY = 'TF_APPROVAL_POLICY_CONFIG_V1';
+const DELEGATIONS_KEY = 'TF_APPROVAL_DELEGATIONS_V1';
+
+const INITIAL_MOCK_DELEGATIONS: DelegationOfAuthority[] = [
+  {
+    id: 'del-01',
+    delegatorRole: UserRole.FINANCE_MANAGER,
+    delegatorName: 'Anish Kapoor',
+    delegatedToRole: UserRole.ACCOUNTANT,
+    delegatedToName: 'Rohan Sharma',
+    delegatedToEmail: 'rohan.accountant@taxflow.in',
+    maxApprovalLimit: 200000,
+    startDate: '2026-07-20',
+    endDate: '2026-07-31',
+    isActive: true,
+    reason: 'Interim Acting Approval Authority during audit closing week (Capped at ₹2,00,000)'
+  }
+];
 
 // Default Policy Configuration
 export const DEFAULT_APPROVAL_POLICY: ApprovalThresholdConfig = {
@@ -415,6 +557,209 @@ export const savePolicyConfig = (config: ApprovalThresholdConfig) => {
   } catch (err) {
     console.error('Failed to save approval policy config:', err);
   }
+};
+
+export const loadDelegations = (): DelegationOfAuthority[] => {
+  try {
+    const raw = localStorage.getItem(DELEGATIONS_KEY);
+    if (!raw) {
+      localStorage.setItem(DELEGATIONS_KEY, JSON.stringify(INITIAL_MOCK_DELEGATIONS));
+      return INITIAL_MOCK_DELEGATIONS;
+    }
+    return JSON.parse(raw);
+  } catch (err) {
+    return INITIAL_MOCK_DELEGATIONS;
+  }
+};
+
+export const saveDelegations = (delegations: DelegationOfAuthority[]) => {
+  try {
+    localStorage.setItem(DELEGATIONS_KEY, JSON.stringify(delegations));
+  } catch (err) {
+    console.error('Failed to save delegations:', err);
+  }
+};
+
+export const createDelegation = (delegation: Omit<DelegationOfAuthority, 'id'>): DelegationOfAuthority => {
+  const list = loadDelegations();
+  const newItem: DelegationOfAuthority = {
+    ...delegation,
+    id: `del-${Date.now()}`
+  };
+  const updated = [newItem, ...list];
+  saveDelegations(updated);
+  return newItem;
+};
+
+export const toggleDelegation = (id: string): DelegationOfAuthority[] => {
+  const list = loadDelegations();
+  const updated = list.map(d => d.id === id ? { ...d, isActive: !d.isActive } : d);
+  saveDelegations(updated);
+  return updated;
+};
+
+export interface RbacActionValidationResult {
+  allowed: boolean;
+  reason?: string;
+  requiredRole?: string;
+  isFourEyesViolation?: boolean;
+  isOverLimit?: boolean;
+  hasDelegation?: boolean;
+}
+
+/**
+ * Validates whether the active role has permission to execute an approval workflow action.
+ * Strict Four-Eyes Separation of Duties (SoD) & Value Tier Checks.
+ */
+export const validateApprovalActionPermission = (
+  userRole: UserRole,
+  action: 'APPROVE' | 'REQUEST_REVISION' | 'REJECT' | 'ESCALATE' | 'DISPATCH_TO_GSTN' | 'AUDIT_OBSERVATION',
+  request: ApprovalRequest,
+  userEmail?: string,
+  policy?: ApprovalThresholdConfig,
+  delegations: DelegationOfAuthority[] = []
+): RbacActionValidationResult => {
+  const effectivePolicy = policy || loadPolicyConfig();
+  const perms = ROLE_APPROVAL_PERMISSIONS[userRole] || ROLE_APPROVAL_PERMISSIONS[UserRole.VIEWER];
+  const totalTax = request.taxAmount.totalTax;
+
+  // 1. Separation of Duties (SoD) / Four-Eyes Check
+  // The person who drafted / submitted the request cannot approve or dispatch it.
+  const isAuthor = userEmail && request.submittedBy.email && userEmail.toLowerCase() === request.submittedBy.email.toLowerCase();
+  if (isAuthor && (action === 'APPROVE' || action === 'DISPATCH_TO_GSTN')) {
+    return {
+      allowed: false,
+      isFourEyesViolation: true,
+      reason: 'Separation of Duties (SoD) Governance: Preparers cannot approve their own submissions (Four-Eyes Principle).',
+      requiredRole: 'Independent Reviewer (Finance Manager or Tax Head)'
+    };
+  }
+
+  // 2. Auditor Special Handling
+  if (userRole === UserRole.AUDITOR) {
+    if (action === 'AUDIT_OBSERVATION') {
+      return { allowed: true };
+    }
+    return {
+      allowed: false,
+      reason: 'Auditors have read-only inspection access. Use "Add Audit Observation" to record compliance remarks.',
+      requiredRole: 'Finance Manager or Admin'
+    };
+  }
+
+  // 3. Viewer Special Handling
+  if (userRole === UserRole.VIEWER) {
+    return {
+      allowed: false,
+      reason: 'Viewer role has read-only executive visibility and cannot mutate workflow status.',
+      requiredRole: 'Finance Manager or Admin'
+    };
+  }
+
+  // 4. Check Active Delegation of Authority
+  const activeDelegation = delegations.find(d => 
+    d.isActive && 
+    (d.delegatedToRole === userRole || (userEmail && d.delegatedToEmail.toLowerCase() === userEmail.toLowerCase()))
+  );
+
+  // 5. Action Specific Validations
+  if (action === 'APPROVE') {
+    // If request is in PENDING_TAX_HEAD status
+    if (request.status === 'PENDING_TAX_HEAD') {
+      if (userRole === UserRole.ADMIN || userRole === UserRole.SUPER_ADMIN) {
+        return { allowed: true };
+      }
+      return {
+        allowed: false,
+        reason: 'This high-value return (> single stage limit) has been escalated to Level-2. Only Tax Head / Partner (Admin) can sign off.',
+        requiredRole: 'Tax Head / Partner (Admin)'
+      };
+    }
+
+    // If request is in PENDING_FINANCE_MANAGER status
+    if (request.status === 'PENDING_FINANCE_MANAGER') {
+      if (userRole === UserRole.ADMIN || userRole === UserRole.SUPER_ADMIN || userRole === UserRole.FINANCE_MANAGER) {
+        return { allowed: true };
+      }
+      // Check if accountant has delegation
+      if (activeDelegation && totalTax <= activeDelegation.maxApprovalLimit) {
+        return { 
+          allowed: true, 
+          hasDelegation: true, 
+          reason: `Permitted under active Delegation of Authority (${activeDelegation.delegatorName} up to ₹${activeDelegation.maxApprovalLimit.toLocaleString('en-IN')})` 
+        };
+      }
+      return {
+        allowed: false,
+        reason: 'Requires Finance Manager (L1 Reviewer) or Tax Head sign-off.',
+        requiredRole: 'Finance Manager or Tax Head'
+      };
+    }
+
+    return { allowed: false, reason: `Cannot approve request currently in [${request.status}] state.` };
+  }
+
+  if (action === 'REQUEST_REVISION' || action === 'REJECT') {
+    if (perms.canRequestRevision || perms.canReject) {
+      return { allowed: true };
+    }
+    if (activeDelegation) {
+      return { allowed: true, hasDelegation: true };
+    }
+    return {
+      allowed: false,
+      reason: 'Only Reviewers (Finance Manager / Tax Head) can request revisions or reject submissions.',
+      requiredRole: 'Finance Manager or Tax Head'
+    };
+  }
+
+  if (action === 'ESCALATE') {
+    return { allowed: true };
+  }
+
+  if (action === 'DISPATCH_TO_GSTN') {
+    if (request.status !== 'APPROVED') {
+      return { allowed: false, reason: 'Request must be in APPROVED state before portal dispatch.' };
+    }
+    if (perms.canDispatchToGstn) {
+      return { allowed: true };
+    }
+    return {
+      allowed: false,
+      reason: 'Only Authorized Signatories (Tax Head / Admin) can execute EVC/DSC digital signature locks and dispatch to GSTN portal.',
+      requiredRole: 'Tax Head / Admin (Authorized Signatory)'
+    };
+  }
+
+  return { allowed: true };
+};
+
+// Add Formal Auditor Observation to Immutable Trail
+export const addAuditorObservation = (
+  requestId: string,
+  user: { name: string; email: string; role: UserRole },
+  observation: string
+): ApprovalRequest => {
+  const requests = loadApprovalRequests();
+  const index = requests.findIndex(r => r.id === requestId);
+  if (index === -1) throw new Error('Approval request not found');
+
+  const req = requests[index];
+  const comment: WorkflowComment = {
+    id: `audit-${Date.now()}`,
+    authorName: user.name,
+    authorRole: user.role,
+    authorEmail: user.email,
+    timestamp: new Date().toISOString(),
+    text: `[AUDIT OBSERVATION]: ${observation}`,
+    actionTaken: 'AUDIT_OBSERVATION'
+  };
+
+  req.comments.push(comment);
+  req.updatedAt = new Date().toISOString();
+  requests[index] = req;
+  saveApprovalRequests(requests);
+  return req;
 };
 
 // Create New Approval Request

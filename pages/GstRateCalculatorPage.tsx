@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Calculator, Search, Percent, ArrowRight, CheckCircle2, Copy, 
   Filter, ShieldCheck, AlertCircle, IndianRupee, Layers, 
@@ -9,7 +10,92 @@ import { HSN_DIRECTORY } from '../data/hsnData';
 import { HSNCode } from '../types';
 import { STATUTORY_SCHEDULES } from '../services/gstEngine/taxCalculator';
 
+// Official GST Portal & CBIC Statutory Slabs Metadata
+export const STATUTORY_SLAB_INFO: Record<number, { 
+  name: string; 
+  badge: string; 
+  schedule: string; 
+  isStandard?: boolean; 
+  isCore?: boolean;
+  desc: string;
+  cgst: number;
+  sgst: number;
+}> = {
+  0: { 
+    name: '0% Nil / Exempt', 
+    badge: 'Nil / Exempt', 
+    schedule: 'Nil-Rated', 
+    desc: 'Essential unbranded food, fresh farm produce, healthcare, education, exports under LUT',
+    cgst: 0, 
+    sgst: 0 
+  },
+  0.25: { 
+    name: '0.25% Diamonds', 
+    badge: 'Diamonds', 
+    schedule: 'Schedule V', 
+    desc: 'Rough & cut/polished diamonds, precious & semi-precious stones',
+    cgst: 0.125, 
+    sgst: 0.125 
+  },
+  3: { 
+    name: '3% Precious Metals', 
+    badge: 'Gold / Bullion', 
+    schedule: 'Schedule IV', 
+    desc: 'Gold, silver, platinum bars, coins, bullion, and articles of jewelry',
+    cgst: 1.5, 
+    sgst: 1.5 
+  },
+  5: { 
+    name: '5% Merit Rate', 
+    badge: 'Merit', 
+    schedule: 'Schedule I', 
+    isCore: true,
+    desc: 'Mass essentials, packaged cereals, edible oils, tea, transport, apparel ≤ ₹1,000',
+    cgst: 2.5, 
+    sgst: 2.5 
+  },
+  6: { 
+    name: '6% Concessional', 
+    badge: 'Bricks (No ITC)', 
+    schedule: 'Notif. 02/2022', 
+    desc: 'Special composition rate for building bricks and earthen tiles without ITC benefit',
+    cgst: 3, 
+    sgst: 3 
+  },
+  12: { 
+    name: '12% Standard Lower', 
+    badge: 'Standard Lower', 
+    schedule: 'Schedule II', 
+    isCore: true,
+    desc: 'Pharma medicaments, medical diagnostic kits, apparel > ₹1,000, works contracts',
+    cgst: 6, 
+    sgst: 6 
+  },
+  18: { 
+    name: '18% Standard Rate', 
+    badge: 'Standard Rate', 
+    schedule: 'Schedule III', 
+    isStandard: true, 
+    isCore: true,
+    desc: 'Official statutory benchmark rate for majority of goods, IT/software, electronics & services',
+    cgst: 9, 
+    sgst: 9 
+  },
+  28: { 
+    name: '28% Demerit / Max', 
+    badge: 'Luxury / Demerit', 
+    schedule: 'Schedule VII', 
+    isCore: true,
+    desc: 'Motor vehicles, cement, air conditioning, aerated drinks, betting/gaming (+ Cess)',
+    cgst: 14, 
+    sgst: 14 
+  },
+};
+
 export const GstRateCalculatorPage: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   // Calculator Form State
   const [selectedHsnId, setSelectedHsnId] = useState<string>('hsn-8471'); // default to 8471 Laptops (18%)
   const [customTaxRate, setCustomTaxRate] = useState<number | null>(null);
@@ -22,6 +108,26 @@ export const GstRateCalculatorPage: React.FC = () => {
   const [isUnionTerritory, setIsUnionTerritory] = useState<boolean>(false);
   const [applyCess, setApplyCess] = useState<boolean>(true);
   const [copiedNotification, setCopiedNotification] = useState<boolean>(false);
+
+  // Handle incoming prefill state from Quick Tax Calculator or other pages
+  useEffect(() => {
+    const navState = location.state as { prefilledAmount?: string; prefilledHsnCode?: string; isInterstate?: boolean } | null;
+    if (navState) {
+      if (navState.prefilledAmount) {
+        setTaxableAmount(navState.prefilledAmount);
+        setAmountMode('TOTAL');
+      }
+      if (navState.prefilledHsnCode) {
+        const found = HSN_DIRECTORY.find(item => item.code === navState.prefilledHsnCode);
+        if (found) {
+          setSelectedHsnId(found.id);
+        }
+      }
+      if (typeof navState.isInterstate === 'boolean') {
+        setSupplyType(navState.isInterstate ? 'INTER' : 'INTRA');
+      }
+    }
+  }, [location.state]);
 
   // Directory Search & Filter State
   const [directorySearch, setDirectorySearch] = useState<string>('');
@@ -162,55 +268,94 @@ Generated via TaxFlow Enterprise GST Rate Engine`;
     setTimeout(() => setCopiedNotification(false), 3000);
   };
 
+  const handleCreateInvoiceFromCalc = () => {
+    const draftLineItem = {
+      id: `draft-calc-${Date.now()}`,
+      description: selectedItem.description || 'Goods / Services Item',
+      hsnSac: selectedItem.code || '',
+      quantity: amountMode === 'QTY_RATE' ? (parseFloat(quantity) || 1) : 1,
+      unit: 'PCS',
+      rate: amountMode === 'QTY_RATE' ? (parseFloat(unitRate) || 0) : calculationResult.netTaxable,
+      taxRate: effectiveTaxRate,
+      taxableValue: calculationResult.netTaxable,
+      taxAmount: calculationResult.totalTax,
+      cgst: calculationResult.cgst,
+      sgst: calculationResult.sgstOrUtgst,
+      igst: calculationResult.igst,
+      total: calculationResult.grossAmount,
+      isInterstate: supplyType === 'INTER',
+    };
+
+    try {
+      sessionStorage.setItem('taxflow_quick_tax_draft_item', JSON.stringify(draftLineItem));
+    } catch (e) {
+      console.warn(e);
+    }
+
+    navigate('/invoices', {
+      state: {
+        openDraft: true,
+        prefilledDraftItem: draftLineItem,
+      }
+    });
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-300 pb-16">
       {/* Header Banner */}
-      <div className="bg-slate-900 text-white rounded-3xl p-6 sm:p-8 border border-slate-800 shadow-xl relative overflow-hidden">
-        <div className="absolute right-0 top-0 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
-        <div className="absolute right-32 bottom-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none"></div>
+      <div className="bg-white text-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm relative overflow-hidden">
+        <div className="absolute right-0 top-0 w-96 h-96 bg-blue-50/70 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
+        <div className="absolute right-32 bottom-0 w-64 h-64 bg-indigo-50/50 rounded-full blur-2xl pointer-events-none"></div>
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2 max-w-2xl">
             <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-2xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shadow-sm">
+              <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-xs">
                 <Calculator size={22} />
               </div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
                   GST Rate & HSN/SAC Calculator
                 </h1>
-                <span className="hidden sm:inline-flex px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-[10px] font-extrabold uppercase tracking-wider border border-blue-500/30">
+                <span className="hidden sm:inline-flex px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-extrabold uppercase tracking-wider border border-blue-200">
                   Statutory 2026 Engine
                 </span>
               </div>
             </div>
-            <p className="text-slate-400 text-sm leading-relaxed">
+            <p className="text-slate-500 text-sm leading-relaxed">
               Determine statutory GST tax slabs, calculate CGST, SGST, UTGST, and IGST breakdowns, simulate inclusive/exclusive values, and look up verified HSN/SAC classifications across Goods and Services.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
             <button
+              onClick={() => {
+                navigate('/hsn-lookup');
+              }}
+              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-2"
+            >
+              <Search size={15} className="text-white" />
+              <span>HSN/SAC Directory & Gazette</span>
+            </button>
+            <button
               onClick={copyBreakdownToClipboard}
-              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700/80 text-white text-xs font-bold rounded-xl border border-slate-700/80 transition-all flex items-center gap-2 shadow-sm"
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-200/80 transition-all flex items-center gap-2 shadow-xs"
             >
               {copiedNotification ? (
                 <>
-                  <Check size={16} className="text-emerald-400" />
-                  <span className="text-emerald-400">Copied to Clipboard!</span>
+                  <Check size={16} className="text-emerald-600" />
+                  <span className="text-emerald-600">Copied to Clipboard!</span>
                 </>
               ) : (
                 <>
-                  <Copy size={16} className="text-slate-300" />
+                  <Copy size={16} className="text-slate-600" />
                   <span>Copy Calculation</span>
                 </>
               )}
             </button>
             <button
-              onClick={() => {
-                window.location.hash = '/invoices';
-              }}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-2"
+              onClick={handleCreateInvoiceFromCalc}
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-2 active:scale-95"
             >
               <FileText size={16} />
               <span>Create Invoice</span>
@@ -415,36 +560,67 @@ Generated via TaxFlow Enterprise GST Rate Engine`;
             </div>
 
             {/* 3. Tax Slabs & Rate Adjustment */}
-            <div className="space-y-2 pt-2 border-t border-slate-100">
-              <div className="flex items-center justify-between">
+            <div className="space-y-2.5 pt-2 border-t border-slate-100">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                   <Percent size={13} className="text-blue-600" />
                   Statutory GST Slab
                 </label>
-                <span className="text-xs font-black text-blue-600 font-mono">
-                  {effectiveTaxRate}% GST
-                </span>
+                <div className="flex items-center gap-2">
+                  {effectiveTaxRate === 18 && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800 border border-blue-200 animate-pulse">
+                      Official Standard Benchmark
+                    </span>
+                  )}
+                  <span className="text-xs font-black text-blue-600 font-mono">
+                    {effectiveTaxRate}% GST
+                  </span>
+                </div>
               </div>
 
               {/* Slabs Pill Selection */}
               <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5">
-                {[0, 0.25, 3, 5, 6, 12, 18, 28].map((slab) => (
-                  <button
-                    key={slab}
-                    type="button"
-                    onClick={() => setCustomTaxRate(slab)}
-                    className={`py-2 px-1 rounded-xl text-xs font-extrabold transition-all border flex flex-col items-center justify-center ${
-                      effectiveTaxRate === slab
-                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
-                    }`}
-                  >
-                    <span>{slab}%</span>
-                    <span className="text-[8px] font-medium opacity-80">
-                      {slab === 0 ? 'Nil' : slab === 18 ? 'Std' : slab === 28 ? 'Max' : 'Tier'}
-                    </span>
-                  </button>
-                ))}
+                {[0, 0.25, 3, 5, 6, 12, 18, 28].map((slab) => {
+                  const meta = STATUTORY_SLAB_INFO[slab];
+                  const isSelected = effectiveTaxRate === slab;
+                  return (
+                    <button
+                      key={slab}
+                      type="button"
+                      onClick={() => setCustomTaxRate(slab)}
+                      title={`${meta?.name}: ${meta?.desc}`}
+                      className={`py-2 px-1 rounded-xl text-xs font-extrabold transition-all border flex flex-col items-center justify-center cursor-pointer relative ${
+                        isSelected
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-md ring-2 ring-blue-500/20'
+                          : slab === 18
+                          ? 'bg-blue-50/60 hover:bg-blue-100/60 text-blue-900 border-blue-200'
+                          : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                      }`}
+                    >
+                      <span className="flex items-center gap-0.5">
+                        {slab}%
+                      </span>
+                      <span className={`text-[8px] font-bold tracking-tight ${
+                        isSelected ? 'text-blue-100' : slab === 18 ? 'text-blue-700 font-black' : 'text-slate-500'
+                      }`}>
+                        {slab === 0 ? 'Nil' : slab === 18 ? 'Standard' : slab === 28 ? 'Demerit' : meta?.badge || 'Tier'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Statutory Schedule & Component Breakdown Note */}
+              <div className="flex items-center justify-between text-[11px] text-slate-500 bg-slate-50/80 px-3 py-1.5 rounded-lg border border-slate-200/70">
+                <span className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                  <span>Schedule: <strong className="text-slate-700">{STATUTORY_SLAB_INFO[effectiveTaxRate]?.schedule || 'Statutory'}</strong> ({STATUTORY_SLAB_INFO[effectiveTaxRate]?.name})</span>
+                </span>
+                <span className="font-mono text-[10px] font-bold text-slate-600">
+                  {supplyType === 'INTRA' 
+                    ? `CGST ${(effectiveTaxRate / 2)}% + ${isUnionTerritory ? 'UTGST' : 'SGST'} ${(effectiveTaxRate / 2)}%` 
+                    : `IGST ${effectiveTaxRate}%`}
+                </span>
               </div>
             </div>
 
@@ -528,86 +704,86 @@ Generated via TaxFlow Enterprise GST Rate Engine`;
 
         {/* Right Column: Instant Computation Breakdown Result Card */}
         <div className="lg:col-span-5 space-y-6">
-          <div className="bg-gradient-to-b from-slate-900 to-slate-950 text-white rounded-3xl p-6 sm:p-7 border border-slate-800 shadow-xl space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+          <div className="bg-white text-slate-900 rounded-3xl p-6 sm:p-7 border border-slate-200/90 shadow-sm space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div className="flex items-center gap-2">
-                <Sparkles size={18} className="text-blue-400" />
-                <span className="text-xs font-extrabold uppercase tracking-widest text-slate-300">
+                <Sparkles size={18} className="text-blue-600" />
+                <span className="text-xs font-extrabold uppercase tracking-widest text-slate-700">
                   Computation Summary
                 </span>
               </div>
-              <span className="px-2.5 py-1 rounded-full bg-blue-500/20 text-blue-400 text-[10px] font-black uppercase tracking-wider border border-blue-500/30">
+              <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-[10px] font-black uppercase tracking-wider border border-blue-200">
                 {calculationMode}
               </span>
             </div>
 
             {/* Total Gross Invoice Value Display */}
             <div className="space-y-1">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
                 Total Invoice Gross Value
               </span>
-              <div className="text-3xl sm:text-4xl font-black text-white font-mono tracking-tight flex items-baseline gap-1">
-                <span className="text-xl font-normal text-slate-400">₹</span>
+              <div className="text-3xl sm:text-4xl font-black text-slate-900 font-mono tracking-tight flex items-baseline gap-1">
+                <span className="text-xl font-normal text-slate-500">₹</span>
                 {calculationResult.grossAmount.toLocaleString('en-IN', {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 })}
               </div>
-              <span className="text-xs text-slate-400 font-medium block">
+              <span className="text-xs text-slate-500 font-medium block">
                 Effective Total Tax: ₹{(calculationResult.totalTax + calculationResult.cessAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })} ({((calculationResult.rate + calculationResult.cessRate)).toFixed(1)}%)
               </span>
             </div>
 
             {/* Line Item Breakdown */}
-            <div className="space-y-3 bg-slate-800/60 p-4 rounded-2xl border border-slate-700/60 text-xs">
+            <div className="space-y-3 bg-slate-50/80 p-4 rounded-2xl border border-slate-200/70 text-xs">
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Taxable Net Value</span>
-                <span className="font-mono font-bold text-white text-sm">
+                <span className="text-slate-600 font-medium">Taxable Net Value</span>
+                <span className="font-mono font-bold text-slate-900 text-sm">
                   ₹{calculationResult.netTaxable.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
 
               {supplyType === 'INTRA' ? (
                 <>
-                  <div className="flex items-center justify-between border-t border-slate-700/50 pt-2.5">
-                    <span className="text-slate-400 flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                  <div className="flex items-center justify-between border-t border-slate-200/60 pt-2.5">
+                    <span className="text-slate-600 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
                       CGST ({calculationResult.cgstRate}%)
                     </span>
-                    <span className="font-mono font-semibold text-emerald-400">
+                    <span className="font-mono font-bold text-emerald-600">
                       +₹{calculationResult.cgst.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between border-t border-slate-700/50 pt-2.5">
-                    <span className="text-slate-400 flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                  <div className="flex items-center justify-between border-t border-slate-200/60 pt-2.5">
+                    <span className="text-slate-600 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
                       {isUnionTerritory ? 'UTGST' : 'SGST'} ({calculationResult.sgstRate}%)
                     </span>
-                    <span className="font-mono font-semibold text-emerald-400">
+                    <span className="font-mono font-bold text-emerald-600">
                       +₹{calculationResult.sgstOrUtgst.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
                 </>
               ) : (
-                <div className="flex items-center justify-between border-t border-slate-700/50 pt-2.5">
-                  <span className="text-slate-400 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-purple-400"></span>
+                <div className="flex items-center justify-between border-t border-slate-200/60 pt-2.5">
+                  <span className="text-slate-600 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
                     IGST ({calculationResult.igstRate}%)
                   </span>
-                  <span className="font-mono font-semibold text-emerald-400">
+                  <span className="font-mono font-bold text-emerald-600">
                     +₹{calculationResult.igst.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
               )}
 
               {calculationResult.cessRate > 0 && (
-                <div className="flex items-center justify-between border-t border-slate-700/50 pt-2.5">
-                  <span className="text-amber-400 flex items-center gap-1.5 font-medium">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                <div className="flex items-center justify-between border-t border-slate-200/60 pt-2.5">
+                  <span className="text-amber-700 flex items-center gap-1.5 font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
                     Compensation Cess ({calculationResult.cessRate}%)
                   </span>
-                  <span className="font-mono font-bold text-amber-300">
+                  <span className="font-mono font-bold text-amber-700">
                     +₹{calculationResult.cessAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
@@ -615,38 +791,38 @@ Generated via TaxFlow Enterprise GST Rate Engine`;
             </div>
 
             {/* Selected Classification Card Details */}
-            <div className="p-4 rounded-2xl bg-slate-800/40 border border-slate-700/40 space-y-2 text-xs">
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2 text-xs">
               <div className="flex items-center justify-between">
-                <span className="font-mono font-extrabold text-blue-400 text-sm">
+                <span className="font-mono font-extrabold text-blue-600 text-sm">
                   {selectedItem.code}
                 </span>
                 <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${
-                  selectedItem.category === 'GOODS' ? 'bg-blue-500/20 text-blue-300' : 'bg-purple-500/20 text-purple-300'
+                  selectedItem.category === 'GOODS' ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-purple-100 text-purple-700 border border-purple-200'
                 }`}>
                   {selectedItem.category}
                 </span>
               </div>
-              <p className="text-slate-300 text-xs line-clamp-2">
+              <p className="text-slate-700 text-xs line-clamp-2">
                 {selectedItem.description}
               </p>
               {selectedItem.conditions && (
-                <p className="text-[11px] text-slate-400 italic pt-1 border-t border-slate-700/40">
+                <p className="text-[11px] text-slate-500 italic pt-1 border-t border-slate-200/60">
                   Note: {selectedItem.conditions}
                 </p>
               )}
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 {selectedItem.rcmApplicable && (
-                  <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30">
+                  <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 text-[10px] font-bold border border-amber-200">
                     RCM Applicable
                   </span>
                 )}
                 {selectedItem.itcEligibility && (
                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
                     selectedItem.itcEligibility === 'ELIGIBLE' 
-                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                       : selectedItem.itcEligibility === 'INELIGIBLE'
-                      ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
-                      : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                      ? 'bg-rose-50 text-rose-700 border-rose-200'
+                      : 'bg-amber-50 text-amber-700 border-amber-200'
                   }`}>
                     ITC: {selectedItem.itcEligibility}
                   </span>
@@ -658,17 +834,15 @@ Generated via TaxFlow Enterprise GST Rate Engine`;
             <div className="pt-2 flex items-center gap-3">
               <button
                 onClick={copyBreakdownToClipboard}
-                className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
+                className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-2"
               >
                 <Copy size={15} />
                 <span>Copy Summary</span>
               </button>
               <button
-                onClick={() => {
-                  window.location.hash = '/invoices';
-                }}
-                className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl transition-all border border-slate-700 flex items-center justify-center gap-2"
-                title="Use in Invoices"
+                onClick={handleCreateInvoiceFromCalc}
+                className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all border border-slate-300 flex items-center justify-center gap-2 active:scale-95"
+                title="Create Invoice with this calculation"
               >
                 <ArrowRight size={15} />
               </button>
@@ -737,17 +911,20 @@ Generated via TaxFlow Enterprise GST Rate Engine`;
           {/* Slab Rate Selector */}
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold overflow-x-auto">
             <span className="text-[10px] uppercase text-slate-400 px-2">Slab:</span>
-            {(['ALL', 0, 3, 5, 12, 18, 28] as const).map((slab) => (
+            {(['ALL', 0, 0.25, 3, 5, 6, 12, 18, 28] as const).map((slab) => (
               <button
                 key={slab.toString()}
                 onClick={() => setSlabFilter(slab)}
-                className={`px-2.5 py-1.5 rounded-lg whitespace-nowrap text-xs transition-all ${
+                title={slab === 'ALL' ? 'All Slabs' : slab === 18 ? '18% Standard Statutory Benchmark Slab' : `${slab}% Slab`}
+                className={`px-2.5 py-1.5 rounded-lg whitespace-nowrap text-xs transition-all cursor-pointer ${
                   slabFilter === slab
-                    ? 'bg-blue-600 text-white shadow-sm'
+                    ? 'bg-blue-600 text-white shadow-sm font-black'
+                    : slab === 18
+                    ? 'text-blue-800 bg-blue-50/70 hover:bg-blue-100/70 border border-blue-200/60'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                {slab === 'ALL' ? 'All' : `${slab}%`}
+                {slab === 'ALL' ? 'All' : slab === 18 ? '18% (Std)' : `${slab}%`}
               </button>
             ))}
           </div>
@@ -901,57 +1078,169 @@ Generated via TaxFlow Enterprise GST Rate Engine`;
 
       {/* Statutory GST Slabs Reference Guide Card */}
       <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
-        <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-          <Scale size={22} className="text-blue-600" />
-          <div>
-            <h3 className="text-base font-extrabold text-slate-900">
-              Statutory GST Rate Slabs & Invoicing Rules
-            </h3>
-            <p className="text-xs text-slate-500">
-              Official Indian GST schedules per Central Goods and Services Tax Act, 2017.
-            </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <div className="flex items-center gap-3">
+            <Scale size={22} className="text-blue-600" />
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Statutory GST Rate Slabs & Tariff Architecture
+                </h3>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-extrabold border border-emerald-200">
+                  CBIC & GST Portal Aligned
+                </span>
+              </div>
+              <p className="text-xs text-slate-500">
+                Official Indian GST schedules per Central Goods and Services Tax Act, 2017 & Rate Notifications.
+              </p>
+            </div>
+          </div>
+          <div className="text-xs text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200/80 font-medium">
+            Standard Default Rate: <strong className="text-blue-700 font-extrabold">18% (Schedule III)</strong>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-2xl space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-base font-black text-emerald-900">0% Nil / Exempt</span>
-              <span className="text-[10px] font-bold bg-emerald-200/60 text-emerald-900 px-2 py-0.5 rounded">Essentials</span>
-            </div>
-            <p className="text-xs text-emerald-800 leading-relaxed">
-              Fresh vegetables, unprocessed grains, milk, salt, healthcare, schooling, and zero-rated exports under LUT.
-            </p>
+        {/* 1. Core 4-Tier Standard Structure */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-700">
+              Primary 4-Tier Standard Slabs
+            </span>
+            <span className="text-[11px] text-slate-400">
+              General commercial goods & registered taxable services
+            </span>
           </div>
-
-          <div className="p-4 bg-teal-50/50 border border-teal-200 rounded-2xl space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-base font-black text-teal-900">5% Merit Slab</span>
-              <span className="text-[10px] font-bold bg-teal-200/60 text-teal-900 px-2 py-0.5 rounded">Low Tier</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* 5% Merit Slab */}
+            <div className="p-4 bg-teal-50/50 border border-teal-200 rounded-2xl space-y-2 relative overflow-hidden">
+              <div className="flex items-center justify-between">
+                <span className="text-base font-black text-teal-900">5% Merit Slab</span>
+                <span className="text-[10px] font-bold bg-teal-200/60 text-teal-900 px-2 py-0.5 rounded">
+                  Schedule I
+                </span>
+              </div>
+              <p className="text-xs text-teal-800 leading-relaxed">
+                Packaged branded food items, edible oils, tea, transport services (air economy/cab), life saving medicines, apparel/footwear up to ₹1,000.
+              </p>
+              <div className="text-[10px] font-mono text-teal-700 pt-1 border-t border-teal-200/60 font-semibold">
+                CGST 2.5% + SGST 2.5% | IGST 5%
+              </div>
             </div>
-            <p className="text-xs text-teal-800 leading-relaxed">
-              Packaged food items, apparel & footwear up to ₹1,000, edible oils, transport by air/cab, life saving medicines.
-            </p>
+
+            {/* 12% Standard Lower */}
+            <div className="p-4 bg-blue-50/50 border border-blue-200 rounded-2xl space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-base font-black text-blue-900">12% Standard Lower</span>
+                <span className="text-[10px] font-bold bg-blue-200/60 text-blue-900 px-2 py-0.5 rounded">
+                  Schedule II
+                </span>
+              </div>
+              <p className="text-xs text-blue-800 leading-relaxed">
+                Formulated pharma medicaments, diagnostic kits, apparel & footwear above ₹1,000, business class air tickets, government civil works contracts.
+              </p>
+              <div className="text-[10px] font-mono text-blue-700 pt-1 border-t border-blue-200/60 font-semibold">
+                CGST 6% + SGST 6% | IGST 12%
+              </div>
+            </div>
+
+            {/* 18% Standard Benchmark */}
+            <div className="p-4 bg-indigo-50/60 border-2 border-indigo-400/80 rounded-2xl space-y-2 shadow-xs relative">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-base font-black text-indigo-950">18% Standard Rate</span>
+                </div>
+                <span className="text-[10px] font-black bg-indigo-600 text-white px-2 py-0.5 rounded">
+                  Schedule III • Benchmark
+                </span>
+              </div>
+              <p className="text-xs text-indigo-900 leading-relaxed font-medium">
+                Official statutory benchmark rate for IT software, electronics, capital machinery, banking, telecom, hospitality, and over 70% of commercial supplies.
+              </p>
+              <div className="text-[10px] font-mono text-indigo-800 pt-1 border-t border-indigo-200/80 font-bold">
+                CGST 9% + SGST 9% | IGST 18%
+              </div>
+            </div>
+
+            {/* 28% Luxury & Demerit */}
+            <div className="p-4 bg-rose-50/50 border border-rose-200 rounded-2xl space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-base font-black text-rose-900">28% Luxury / Demerit</span>
+                <span className="text-[10px] font-bold bg-rose-200/60 text-rose-900 px-2 py-0.5 rounded">
+                  Schedule VII
+                </span>
+              </div>
+              <p className="text-xs text-rose-800 leading-relaxed">
+                Motor cars, motorcycles, air conditioners, cement, aerated beverages, pan masala, and online gaming (with applicable Compensation Cess).
+              </p>
+              <div className="text-[10px] font-mono text-rose-700 pt-1 border-t border-rose-200/60 font-semibold">
+                CGST 14% + SGST 14% | IGST 28%
+              </div>
+            </div>
           </div>
+        </div>
 
-          <div className="p-4 bg-blue-50/50 border border-blue-200 rounded-2xl space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-base font-black text-blue-900">12% Standard Lower</span>
-              <span className="text-[10px] font-bold bg-blue-200/60 text-blue-900 px-2 py-0.5 rounded">Pharma / Apparel</span>
-            </div>
-            <p className="text-xs text-blue-800 leading-relaxed">
-              Formulated medicaments, apparel & footwear above ₹1,000, budget hotel rooms (₹1k-₹7.5k), government construction.
-            </p>
+        {/* 2. Special Statutory Commodity Slabs */}
+        <div className="space-y-3 pt-2 border-t border-slate-100">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-700">
+              Special Statutory Slabs & Exemptions
+            </span>
+            <span className="text-[11px] text-slate-400">
+              Commodity-specific rates and concessional notifications
+            </span>
           </div>
-
-          <div className="p-4 bg-indigo-50/50 border border-indigo-200 rounded-2xl space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-base font-black text-indigo-900">18% Standard Upper</span>
-              <span className="text-[10px] font-bold bg-indigo-200/60 text-indigo-900 px-2 py-0.5 rounded">Default Slab</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* 0% Nil / Exempt */}
+            <div className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-2xl space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-black text-emerald-900">0% Nil / Exempt</span>
+                <span className="text-[10px] font-bold bg-emerald-200/60 text-emerald-900 px-2 py-0.5 rounded">
+                  Exempt / LUT
+                </span>
+              </div>
+              <p className="text-xs text-emerald-800 leading-relaxed">
+                Fresh vegetables, unbranded grains, milk, salt, healthcare, schooling, and zero-rated export supplies under Letter of Undertaking (LUT).
+              </p>
             </div>
-            <p className="text-xs text-indigo-800 leading-relaxed">
-              IT software, enterprise hardware, banking, telecom, professional services, industrial capital goods, office furniture.
-            </p>
+
+            {/* 0.25% Diamonds */}
+            <div className="p-4 bg-cyan-50/50 border border-cyan-200 rounded-2xl space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-black text-cyan-900">0.25% Diamonds</span>
+                <span className="text-[10px] font-bold bg-cyan-200/60 text-cyan-900 px-2 py-0.5 rounded">
+                  Schedule V
+                </span>
+              </div>
+              <p className="text-xs text-cyan-800 leading-relaxed">
+                Cut & polished diamonds, rough diamonds, precious & semi-precious stones (CGST 0.125% + SGST 0.125%).
+              </p>
+            </div>
+
+            {/* 3% Gold */}
+            <div className="p-4 bg-amber-50/50 border border-amber-200 rounded-2xl space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-black text-amber-900">3% Gold & Bullion</span>
+                <span className="text-[10px] font-bold bg-amber-200/60 text-amber-900 px-2 py-0.5 rounded">
+                  Schedule IV
+                </span>
+              </div>
+              <p className="text-xs text-amber-800 leading-relaxed">
+                Gold, silver, platinum bars, coins, bullion, and articles of jewelry (CGST 1.5% + SGST 1.5%).
+              </p>
+            </div>
+
+            {/* 6% Bricks Scheme */}
+            <div className="p-4 bg-purple-50/50 border border-purple-200 rounded-2xl space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-black text-purple-900">6% Concessional</span>
+                <span className="text-[10px] font-bold bg-purple-200/60 text-purple-900 px-2 py-0.5 rounded">
+                  Notif. 02/2022
+                </span>
+              </div>
+              <p className="text-xs text-purple-800 leading-relaxed">
+                Special concessional rate for brick kilns, building bricks, and earthen roofing tiles without ITC benefit.
+              </p>
+            </div>
           </div>
         </div>
 
@@ -959,18 +1248,18 @@ Generated via TaxFlow Enterprise GST Rate Engine`;
         <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs">
           <div className="space-y-1">
             <span className="font-extrabold text-slate-800 block">
-              Mandatory HSN Digit Rules on Tax Invoices:
+              Mandatory HSN Digit Rules on Tax Invoices (Rule 46 of CGST Rules):
             </span>
             <p className="text-slate-600">
-              • Turnover &gt; ₹5.00 Crore: <strong>6-digit HSN / SAC</strong> is mandatory on all B2B and export invoices.<br />
-              • Turnover ≤ ₹5.00 Crore: <strong>4-digit HSN</strong> mandatory on B2B invoices (optional on B2C).
+              • Aggregate Turnover &gt; ₹5.00 Crore: <strong>6-digit HSN / SAC</strong> is mandatory on all B2B and export invoices.<br />
+              • Aggregate Turnover ≤ ₹5.00 Crore: <strong>4-digit HSN</strong> mandatory on B2B invoices (optional for B2C).
             </p>
           </div>
           <button
             onClick={() => {
-              window.location.hash = '/tax-forecasting';
+              navigate('/tax-forecasting');
             }}
-            className="px-4 py-2 bg-white border border-slate-300 hover:border-slate-400 font-bold text-slate-700 rounded-xl transition-all whitespace-nowrap shadow-xs"
+            className="px-4 py-2 bg-white border border-slate-300 hover:border-slate-400 font-bold text-slate-700 rounded-xl transition-all whitespace-nowrap shadow-xs cursor-pointer"
           >
             Explore Tax Forecasting →
           </button>

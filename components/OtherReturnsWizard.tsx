@@ -239,11 +239,11 @@ export const OtherReturnsWizard: React.FC<OtherReturnsWizardProps> = ({
     try {
       const summary: FilingDataSummary = {
         totalLiability: selectedReturn.taxLiability || 500000,
-        itcAvailable: selectedReturn.itcClaimed || 400000,
-        cashPayable: (selectedReturn.taxLiability || 500000) - (selectedReturn.itcClaimed || 400000),
+        itcAvailable: (selectedReturn as any).itcClaimed || 400000,
+        cashPayable: (selectedReturn.taxLiability || 500000) - ((selectedReturn as any).itcClaimed || 400000),
         sections: [
           { label: 'Outward Taxable Supplies', count: 12, value: selectedReturn.taxLiability || 500000 },
-          { label: 'Eligible ITC claimed', count: 8, value: selectedReturn.itcClaimed || 400000 }
+          { label: 'Eligible ITC claimed', count: 8, value: (selectedReturn as any).itcClaimed || 400000 }
         ]
       };
 

@@ -1221,7 +1221,7 @@ const UserAccessManagement: React.FC<UserAccessManagementProps> = ({ currentTena
           <td><span class="badge ${log.status === 'SUCCESS' ? 'grant' : 'revoke'}">${log.eventType} (${log.status})</span></td>
           <td style="font-family: monospace;">${log.ipAddress}<br><span style="font-family: sans-serif; font-size: 9px; color: #64748b;">${log.location}</span></td>
           <td>${log.deviceBrowser}</td>
-          <td><strong>${log.riskLevel} Risk</strong></td>
+          <td><strong>${(log as any).riskLevel || log.riskScore} Risk</strong></td>
         </tr>
       `).join('')}
     </tbody>
@@ -3069,7 +3069,7 @@ const UserAccessManagement: React.FC<UserAccessManagementProps> = ({ currentTena
                           <div className="text-[10px] text-slate-500">{log.location}</div>
                         </td>
                         <td className="p-2.5 text-[11px] text-slate-700">{log.deviceBrowser}</td>
-                        <td className="p-2.5 font-bold text-[10px] text-slate-800">{log.riskLevel} Risk</td>
+                        <td className="p-2.5 font-bold text-[10px] text-slate-800">{(log as any).riskLevel || log.riskScore} Risk</td>
                       </tr>
                     ))}
                   </tbody>

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, updateProfile, addTenant, switchTenant } from '../store/store';
 import { updateTenantProfile, requestGstnOtp, verifyGstnOtp, getGstnConnectionStatus, updateSecuritySettings, downloadUserData, deleteUserAccount, createNewTenant, fetchAuditLogs, sendWeeklyDigest } from '../services/api';
-import { Building2, Users, Shield, Save, Loader2, CheckCircle2, Globe, Key, AlertCircle, RefreshCw, FileKey, Trash2, DownloadCloud, Lock, Plus, X, Bell, History, Mail, CalendarDays, Database, Cloud, Layers, Clock, Download , FileText } from 'lucide-react';
+import { Building2, Users, Shield, Save, Loader2, CheckCircle2, Globe, Key, AlertCircle, RefreshCw, FileKey, Trash2, DownloadCloud, Lock, Plus, X, Bell, History, Mail, CalendarDays, Database, Cloud, Layers, Clock, Download , FileText, Server, MessageSquare } from 'lucide-react';
 import { UserRole } from '../types';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import UserAccessManagement from '../components/organization/UserAccessManagement';
@@ -13,6 +13,7 @@ import WorkspaceSyncSettingsTab from '../components/WorkspaceSyncSettingsTab';
 import { DocumentStylingConfig } from '../components/DocumentStylingConfig';
 import { WhatsAppNotificationCenter } from '../components/WhatsAppNotificationCenter';
 import { AutomatedLedgerExportModule } from '../components/AutomatedLedgerExportModule';
+import { NeonMultiTenantDatabaseCenter } from '../components/organization/NeonMultiTenantDatabaseCenter';
 
 const Toast: React.FC<{ message: string; onClose: () => void }> = ({ message, onClose }) => {
   useEffect(() => {
@@ -424,8 +425,6 @@ const StorageSettings: React.FC<{ tenantId: string; setToast: (msg: string) => v
     );
 };
 
-import { MessageSquare } from 'lucide-react';
-
 const WhatsAppSettingsTab: React.FC<{ setToast: (msg: string) => void }> = ({ setToast }) => {
     const [phoneNumber, setPhoneNumber] = useState('');
     const [isTesting, setIsTesting] = useState(false);
@@ -553,7 +552,7 @@ const Settings: React.FC = () => {
   const currentTenant = user?.availableTenants.find(t => t.id === user.currentTenantId);
   const queryClient = useQueryClient();
   
-  const [activeTab, setActiveTab] = useState<'GSTN' | 'USERS' | 'SECURITY' | 'INACTIVITY' | 'PRIVACY' | 'AUDIT' | 'NOTIFICATIONS' | 'BACKUP' | 'STORAGE' | 'STYLING' | 'WORKSPACE' | 'WHATSAPP'>('GSTN');
+  const [activeTab, setActiveTab] = useState<'GSTN' | 'NEON_DATABASE' | 'USERS' | 'SECURITY' | 'INACTIVITY' | 'AUDIT' | 'NOTIFICATIONS' | 'BACKUP' | 'STORAGE' | 'STYLING' | 'WORKSPACE' | 'WHATSAPP'>('GSTN');
   const [isSaving, setIsSaving] = useState(false);
   
   // Weekly Digest State
@@ -785,6 +784,7 @@ const Settings: React.FC = () => {
 
   const tabs = [
     { id: 'GSTN', label: 'GSTN Portal', icon: Globe },
+    { id: 'NEON_DATABASE', label: 'Postgres Neon Multi-Tenant', icon: Server },
     { id: 'USERS', label: 'User Management', icon: Users },
     { id: 'SECURITY', label: 'Security & SSO', icon: Shield },
     { id: 'INACTIVITY', label: 'Session Inactivity', icon: Clock },
@@ -795,7 +795,6 @@ const Settings: React.FC = () => {
     { id: 'NOTIFICATIONS', label: 'Notifications', icon: Bell },
     { id: 'WHATSAPP', label: 'WhatsApp Alerts', icon: MessageSquare },
     { id: 'AUDIT', label: 'Audit Logs', icon: History },
-    { id: 'PRIVACY', label: 'Data Privacy (DPDP)', icon: FileKey },
   ];
 
   const { data: auditLogs, isLoading: isAuditLoading } = useQuery({
@@ -880,6 +879,15 @@ const Settings: React.FC = () => {
           {activeTab === 'GSTN' && (
              <div className="w-full animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <GstAuthenticationModule />
+             </div>
+          )}
+
+          {activeTab === 'NEON_DATABASE' && (
+             <div className="w-full animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <NeonMultiTenantDatabaseCenter 
+                  currentTenantId={user?.currentTenantId || 't1'} 
+                  onShowToast={(msg) => setToastMessage(msg)} 
+                />
              </div>
           )}
 
@@ -1154,75 +1162,8 @@ const Settings: React.FC = () => {
                onExport={handleExportAuditLogs} 
              />
           )}
-                    {activeTab === 'PRIVACY' && (
-             <div className="max-w-2xl animate-in fade-in slide-in-from-bottom-2 duration-300">
-               <h3 className="text-lg font-semibold text-slate-800 mb-6 flex items-center gap-2">
-                 <FileKey size={20} className="text-blue-500" />
-                 Data Privacy (DPDP Act Compliance)
-               </h3>
-               
-               <div className="space-y-6">
-                 {/* Data Portability */}
-                 <div className="bg-white border border-slate-200 rounded-lg p-6">
-                   <div className="flex justify-between items-start">
-                     <div>
-                       <h4 className="font-semibold text-slate-900">Data Portability</h4>
-                       <p className="text-sm text-slate-500 mt-1 max-w-sm">Download a copy of all your organization's data in a machine-readable format (JSON/XML).</p>
-                     </div>
-                     <button 
-                        onClick={() => exportData(user.id)}
-                        disabled={isExporting}
-                        className="px-4 py-2 border border-blue-200 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-50 flex items-center gap-2"
-                     >
-                       {isExporting ? <Loader2 size={16} className="animate-spin"/> : <DownloadCloud size={16}/>}
-                       Export Data
-                     </button>
-                   </div>
-                 </div>
 
-                 {/* Right to Erasure */}
-                 <div className="bg-white border border-red-200 rounded-lg p-6">
-                   <div className="flex justify-between items-start">
-                     <div>
-                       <h4 className="font-semibold text-red-900">Right to Erasure</h4>
-                       <p className="text-sm text-red-700 mt-1 max-w-sm">Request deletion of all personal data associated with your account, subject to regulatory retention laws.</p>
-                     </div>
-                     <button 
-                        onClick={() => {
-                          if(window.confirm('Are you sure? This action is irreversible.')) deleteAccount(user.id);
-                        }}
-                        disabled={isDeleting}
-                        className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 flex items-center gap-2"
-                     >
-                        {isDeleting ? <Loader2 size={16} className="animate-spin"/> : <Trash2 size={16}/>}
-                        Request Deletion
-                     </button>
-                   </div>
-                 </div>
-
-                 {/* Consent History */}
-                 <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                    <h4 className="text-sm font-bold text-slate-700 mb-3">Consent History</h4>
-                    <div className="space-y-3">
-                        <div className="flex justify-between text-sm">
-                            <span className="text-slate-600">Terms of Service Accepted</span>
-                            <span className="font-mono text-slate-400">2024-01-15 09:30:00</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                            <span className="text-slate-600">Privacy Policy Acknowledged</span>
-                            <span className="font-mono text-slate-400">2024-01-15 09:30:05</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                            <span className="text-slate-600">Cookie Preferences Updated</span>
-                            <span className="font-mono text-slate-400">2024-03-10 14:12:00</span>
-                        </div>
-                    </div>
-                 </div>
-               </div>
-             </div>
-          )}
-
-          {activeTab === 'WHATSAPP' && (
+           {activeTab === 'WHATSAPP' && (
              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
                <WhatsAppNotificationCenter initialTab="SETTINGS" tenantId={currentTenant?.id || 't1'} />
                <WhatsAppSettingsTab setToast={(msg) => setToastMessage(msg)} />

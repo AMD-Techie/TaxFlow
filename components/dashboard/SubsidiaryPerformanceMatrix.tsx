@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Tenant } from '../../types';
 import { 
   Building, CheckCircle2, AlertTriangle, ArrowRight, TrendingUp, 
-  ShieldCheck, ArrowUpRight, Scale, Layers
+  ShieldCheck, ArrowUpRight, Scale, Layers, Search, Filter
 } from 'lucide-react';
 
 interface SubsidiaryPerformanceMatrixProps {
@@ -20,6 +20,9 @@ export const SubsidiaryPerformanceMatrix: React.FC<SubsidiaryPerformanceMatrixPr
   allTenantFilings,
   onSelectCompany
 }) => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedSector, setSelectedSector] = useState<string>('ALL');
+
   // Compute group totals
   let totalSales = 0;
   let totalLiability = 0;
@@ -34,8 +37,31 @@ export const SubsidiaryPerformanceMatrix: React.FC<SubsidiaryPerformanceMatrixPr
     }
   });
 
+  const sectors = useMemo(() => {
+    const s = new Set<string>();
+    availableTenants.forEach(t => {
+      if (t.sector) s.add(t.sector);
+    });
+    return Array.from(s);
+  }, [availableTenants]);
+
+  const filteredTenants = useMemo(() => {
+    return availableTenants.filter(t => {
+      if (selectedSector !== 'ALL' && t.sector !== selectedSector) return false;
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase().trim();
+      return (
+        t.name.toLowerCase().includes(q) ||
+        t.gstin.toLowerCase().includes(q) ||
+        (t.stateName || '').toLowerCase().includes(q) ||
+        t.stateCode.toLowerCase().includes(q) ||
+        (t.sector || '').toLowerCase().includes(q)
+      );
+    });
+  }, [availableTenants, searchQuery, selectedSector]);
+
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-subtle p-6 space-y-6">
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-indigo-50 text-indigo-700 rounded-xl border border-indigo-100">
@@ -53,7 +79,56 @@ export const SubsidiaryPerformanceMatrix: React.FC<SubsidiaryPerformanceMatrixPr
             </p>
           </div>
         </div>
+
+        {/* Search input if 5+ entities */}
+        {availableTenants.length > 4 && (
+          <div className="relative min-w-[240px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search companies, GSTIN, states..."
+              className="w-full pl-9 pr-3 py-1.5 bg-slate-50 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white"
+            />
+          </div>
+        )}
       </div>
+
+      {/* Sector filter tabs if present */}
+      {sectors.length > 0 && availableTenants.length > 4 && (
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
+            <Filter size={11} /> Sector:
+          </span>
+          <button
+            onClick={() => setSelectedSector('ALL')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold shrink-0 transition-all ${
+              selectedSector === 'ALL'
+                ? 'bg-slate-900 text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80 border border-slate-200/60'
+            }`}
+          >
+            All Sectors ({availableTenants.length})
+          </button>
+          {sectors.map(sec => {
+            const count = availableTenants.filter(t => t.sector === sec).length;
+            return (
+              <button
+                key={sec}
+                onClick={() => setSelectedSector(sec)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold shrink-0 transition-all ${
+                  selectedSector === sec
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80 border border-slate-200/60'
+                }`}
+              >
+                {sec} ({count})
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Desktop Comparison Table */}
       <div className="overflow-x-auto">
@@ -71,13 +146,13 @@ export const SubsidiaryPerformanceMatrix: React.FC<SubsidiaryPerformanceMatrixPr
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {availableTenants.map((tenant, idx) => {
+            {filteredTenants.map((tenant, idx) => {
               const stats = allTenantStats[tenant.id] || { sales: 0, liability: 0, itc: 0 };
-              const salesShare = totalSales > 0 ? Math.round((stats.sales / totalSales) * 100) : 0;
+              const salesShare = tenant.revenueContributionPct || (totalSales > 0 ? Math.round((stats.sales / totalSales) * 100) : 0);
               const liabilityShare = totalLiability > 0 ? Math.round((stats.liability / totalLiability) * 100) : 0;
               const filings = allTenantFilings[tenant.id] || [];
               const pendingFilings = filings.filter((f: any) => f.status !== 'FILED');
-              const healthScore = idx === 0 ? 98 : 94;
+              const healthScore = tenant.complianceScore || (idx === 0 ? 98 : 94);
 
               return (
                 <tr 
@@ -100,7 +175,7 @@ export const SubsidiaryPerformanceMatrix: React.FC<SubsidiaryPerformanceMatrixPr
                   </td>
 
                   <td className="py-4 px-4">
-                    <span className="font-medium text-slate-700 block">{tenant.address?.split(',')[1] || 'Headquarters'}</span>
+                    <span className="font-medium text-slate-700 block">{tenant.stateName || tenant.address?.split(',')[1] || 'Headquarters'}</span>
                     <span className="text-[10px] font-mono text-slate-400">Code: {tenant.stateCode}</span>
                   </td>
 

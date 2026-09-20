@@ -18,8 +18,10 @@ import {
   ReconciliationEvidenceSource,
   MultiEvidenceMatchRecord,
   InvoiceWorkflowStatus,
-  InvoiceStage
+  InvoiceStage,
+  MonthlyConsolidatedGstSummaryDto
 } from '../contracts/enterpriseContracts';
+import { DEMO_ENTITY_FIXTURE, DEMO_TAX_PERIOD_FIXTURE } from '../../src/fixtures/demoEntityContext';
 
 export interface ApiClientConfig {
   baseUrl: string;
@@ -45,20 +47,20 @@ class EnterpriseApiClient {
     defaultTimeoutMs: 10000
   };
 
-  private currentContext: ActiveEntityContext = {
-    groupId: 'GROUP-TATA',
-    companyId: 'CO-TITAN',
-    gstinId: '27AABCT1332M1Z2',
-    branchId: 'BR-001'
-  };
-
-  private activePeriod: string = '2026-09';
+  // Production context must be provided by authenticated session.
+  // In development/demo mode, falls back to isolated fixture with warning.
+  private currentContext: ActiveEntityContext | null = null;
+  private activePeriod: string | null = null;
 
   public setEntityContext(context: ActiveEntityContext) {
     this.currentContext = context;
   }
 
   public getEntityContext(): ActiveEntityContext {
+    if (!this.currentContext) {
+      // In development or when uninitialized, use isolated fixture
+      return DEMO_ENTITY_FIXTURE;
+    }
     return this.currentContext;
   }
 
@@ -67,7 +69,7 @@ class EnterpriseApiClient {
   }
 
   public getActivePeriod(): string {
-    return this.activePeriod;
+    return this.activePeriod || DEMO_TAX_PERIOD_FIXTURE;
   }
 
   private generateCorrelationId(): string {
@@ -237,6 +239,29 @@ class EnterpriseApiClient {
       method: 'POST',
       body: JSON.stringify({ targetStage })
     });
+  }
+
+  // ==========================================
+  // CONSOLIDATED EXECUTIVE ANALYTICS APIS
+  // ==========================================
+
+  public async getMonthlyConsolidatedGstSummary(params?: {
+    groupId?: string;
+    timeRange?: 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY';
+    period?: string;
+    gstin?: string;
+    branchId?: string;
+  }): Promise<MonthlyConsolidatedGstSummaryDto> {
+    const query = new URLSearchParams();
+    if (params?.groupId) query.set('groupId', params.groupId);
+    if (params?.timeRange) query.set('timeRange', params.timeRange);
+    if (params?.period) query.set('period', params.period);
+    if (params?.gstin) query.set('gstin', params.gstin);
+    if (params?.branchId) query.set('branchId', params.branchId);
+
+    const queryString = query.toString();
+    const endpoint = `/api/v1/analytics/monthly-consolidated-summary${queryString ? `?${queryString}` : ''}`;
+    return this.request<MonthlyConsolidatedGstSummaryDto>(endpoint);
   }
 }
 

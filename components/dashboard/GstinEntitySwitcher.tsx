@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, switchTenant, setSelectedGstin, setSelectedBranch } from '../../store/store';
-import { Tenant, UserRole } from '../../types';
+import { Tenant } from '../../types';
 import { 
   Layers, Building, CheckCircle2, TrendingUp, ShieldCheck, 
-  ArrowUpRight, IndianRupee, Percent, Plus, MapPin, GitBranch, Check
+  ArrowUpRight, IndianRupee, Percent, Plus, MapPin, GitBranch, Check,
+  Search, Filter, ChevronRight, ChevronDown, ChevronUp, Sparkles, Building2, AlertTriangle
 } from 'lucide-react';
 
 interface GstinEntitySwitcherProps {
@@ -25,6 +26,10 @@ export const GstinEntitySwitcher: React.FC<GstinEntitySwitcherProps> = ({
   const selectedBranchId = useSelector((state: RootState) => state.org.selectedBranchId);
   const gstinsByTenant = useSelector((state: RootState) => state.org.gstinsByTenant);
   const branchesByTenant = useSelector((state: RootState) => state.org.branchesByTenant);
+  
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedSector, setSelectedSector] = useState<string>('ALL');
+  const [isExpanded, setIsExpanded] = useState(false);
   
   // Calculate aggregate metrics
   let totalSales = 0;
@@ -57,26 +62,71 @@ export const GstinEntitySwitcher: React.FC<GstinEntitySwitcherProps> = ({
     ? (branchesByTenant[selectedEntityId] || [])
     : [];
 
+  // Sectors for quick filter
+  const sectors = useMemo(() => {
+    const s = new Set<string>();
+    availableTenants.forEach(t => {
+      if (t.sector) s.add(t.sector);
+    });
+    return Array.from(s);
+  }, [availableTenants]);
+
+  // Filtered tenants
+  const filteredTenants = useMemo(() => {
+    return availableTenants.filter(t => {
+      if (selectedSector !== 'ALL' && t.sector !== selectedSector) return false;
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase().trim();
+      return (
+        t.name.toLowerCase().includes(q) ||
+        t.gstin.toLowerCase().includes(q) ||
+        (t.stateName || '').toLowerCase().includes(q) ||
+        t.stateCode.toLowerCase().includes(q) ||
+        (t.sector || '').toLowerCase().includes(q)
+      );
+    });
+  }, [availableTenants, searchQuery, selectedSector]);
+
+  // Display subset or full set based on expand/search state
+  const displayedTenants = useMemo(() => {
+    if (searchQuery.trim() || selectedSector !== 'ALL' || isExpanded) {
+      return filteredTenants;
+    }
+    // Default preview shows first 3 top operating entities + aggregate
+    return filteredTenants.slice(0, 3);
+  }, [filteredTenants, searchQuery, selectedSector, isExpanded]);
+
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-            <Layers className="text-indigo-600" size={18} /> Entity & GSTIN Multi-Registration Switchboard
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Layers className="text-indigo-600" size={18} /> Entity & Multi-GSTIN Enterprise Switchboard
+            </h3>
+            <span className="text-[11px] font-mono font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-200">
+              {availableTenants.length} Entities Mapped
+            </span>
+          </div>
           <p className="text-xs text-slate-500 font-medium mt-1">
             Toggle between corporate aggregate views or specific state-wise GSTIN nodes and regional branches for granular transactional analysis.
           </p>
         </div>
+
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-semibold text-slate-500">Active Focus:</span>
+          <span className="text-xs font-semibold text-slate-500">Active Scope:</span>
           <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
-            selectedGstin === 'ALL' && selectedBranchId === 'ALL'
+            selectedEntityId === 'AGGREGATE' && selectedGstin === 'ALL' && selectedBranchId === 'ALL'
               ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' 
               : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
           }`}>
-            {selectedGstin === 'ALL' ? 'Consolidated Group View' : `GSTIN: ${selectedGstin}`}
+            {selectedEntityId === 'AGGREGATE' ? 'Consolidated Group View' : `Active Node: ${availableTenants.find(t => t.id === selectedEntityId)?.name || selectedEntityId}`}
           </span>
+          {selectedGstin !== 'ALL' && (
+            <span className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-xs font-mono font-bold">
+              {selectedGstin}
+            </span>
+          )}
           {selectedBranchId !== 'ALL' && (
             <span className="px-2 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-xs font-bold flex items-center gap-1">
               <MapPin size={11} /> Branch Filter Active
@@ -85,8 +135,50 @@ export const GstinEntitySwitcher: React.FC<GstinEntitySwitcherProps> = ({
         </div>
       </div>
 
+      {/* Search & Category Filter Toolbar for 10+ Entities */}
+      {availableTenants.length > 3 && (
+        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Filter by name, GSTIN (e.g. 27...), state, or sector..."
+              className="w-full pl-9 pr-3 py-1.5 bg-white text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 sm:pb-0">
+            <button
+              onClick={() => setSelectedSector('ALL')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold shrink-0 transition-all ${
+                selectedSector === 'ALL'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'bg-white text-slate-600 hover:bg-slate-200/70 border border-slate-200'
+              }`}
+            >
+              All Sectors
+            </button>
+            {sectors.slice(0, 4).map(sec => (
+              <button
+                key={sec}
+                onClick={() => setSelectedSector(sec)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold shrink-0 transition-all ${
+                  selectedSector === sec
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-white text-slate-600 hover:bg-slate-200/70 border border-slate-200'
+                }`}
+              >
+                {sec}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Grid of Switcher Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         
         {/* CARD 1: AGGREGATE ACCOUNT VIEW */}
         <div 
@@ -95,10 +187,10 @@ export const GstinEntitySwitcher: React.FC<GstinEntitySwitcherProps> = ({
             dispatch(setSelectedGstin('ALL'));
             dispatch(setSelectedBranch('ALL'));
           }}
-          className={`cursor-pointer rounded-xl p-5 border-2 transition-all relative overflow-hidden flex flex-col justify-between ${
+          className={`cursor-pointer rounded-xl p-4 sm:p-5 border-2 transition-all relative overflow-hidden flex flex-col justify-between ${
             selectedEntityId === 'AGGREGATE' && selectedGstin === 'ALL'
-              ? 'border-indigo-600 bg-indigo-50/20 shadow-md ring-1 ring-indigo-600'
-              : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
+              ? 'border-indigo-600 bg-indigo-50/30 shadow-md ring-1 ring-indigo-600'
+              : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/50 bg-white'
           }`}
         >
           {selectedEntityId === 'AGGREGATE' && selectedGstin === 'ALL' && (
@@ -114,77 +206,80 @@ export const GstinEntitySwitcher: React.FC<GstinEntitySwitcherProps> = ({
               </div>
               <div>
                 <h4 className="text-sm font-bold text-slate-900">Aggregate View</h4>
-                <p className="text-[10px] text-slate-500 font-semibold tracking-wider uppercase">ALL MAPPED ENTITIES</p>
+                <p className="text-[10px] text-slate-500 font-semibold tracking-wider uppercase">ALL {availableTenants.length} MAPPED ENTITIES</p>
               </div>
             </div>
 
-            <div className="pt-2 grid grid-cols-2 gap-3 border-t border-slate-100">
+            <div className="pt-2 grid grid-cols-2 gap-2 border-t border-slate-100">
               <div>
-                <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">Consolidated Sales</span>
-                <span className="text-sm font-extrabold text-slate-900">₹{totalSales.toLocaleString('en-IN')}</span>
+                <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">Group Sales</span>
+                <span className="text-xs sm:text-sm font-extrabold text-slate-900">₹{totalSales.toLocaleString('en-IN')}</span>
               </div>
               <div>
-                <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">Avg. Compliance</span>
-                <span className="text-sm font-extrabold text-indigo-700 flex items-center gap-1">
-                  <ShieldCheck size={14} /> 88%
+                <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">Avg Compliance</span>
+                <span className="text-xs sm:text-sm font-extrabold text-emerald-600 flex items-center gap-1">
+                  <ShieldCheck size={13} /> 98.4%
                 </span>
               </div>
             </div>
           </div>
 
           <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-500">
-            <span>Corporate Rollup Summary</span>
-            <span className="text-indigo-600 flex items-center gap-0.5">Active <ArrowUpRight size={14}/></span>
+            <span>Consolidated Rollup</span>
+            <span className="text-indigo-600 flex items-center gap-0.5 font-bold">Focus &rarr;</span>
           </div>
         </div>
 
         {/* CARDS 2+: INDIVIDUAL GSTIN TENANTS */}
-        {availableTenants.map((tenant) => {
+        {displayedTenants.map((tenant) => {
           const stats = allTenantStats[tenant.id] || { sales: 0, liability: 0, itc: 0 };
-          const salesContr = totalSales > 0 ? Math.round((stats.sales / totalSales) * 100) : 0;
+          const salesContr = tenant.revenueContributionPct || (totalSales > 0 ? Math.round((stats.sales / totalSales) * 100) : 0);
           const isSelected = selectedEntityId === tenant.id;
-          const isT2 = tenant.id === 't2';
-          const score = isT2 ? 82 : 94;
+          const score = tenant.complianceScore || 98;
           const tenantGstinList = gstinsByTenant[tenant.id] || [];
 
           return (
             <div 
               key={tenant.id}
               onClick={() => handleSelect(tenant.id)}
-              className={`cursor-pointer rounded-xl p-5 border-2 transition-all relative overflow-hidden flex flex-col justify-between ${
+              className={`cursor-pointer rounded-xl p-4 sm:p-5 border-2 transition-all relative overflow-hidden flex flex-col justify-between ${
                 isSelected
-                  ? 'border-indigo-600 bg-indigo-50/20 shadow-md ring-1 ring-indigo-600'
-                  : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
+                  ? 'border-blue-600 bg-blue-50/30 shadow-md ring-1 ring-blue-600'
+                  : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/50 bg-white'
               }`}
             >
               {isSelected && (
-                <div className="absolute top-3 right-3 text-indigo-600">
-                  <CheckCircle2 size={18} className="fill-indigo-100" />
+                <div className="absolute top-3 right-3 text-blue-600">
+                  <CheckCircle2 size={18} className="fill-blue-100" />
                 </div>
               )}
 
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center border border-slate-200 font-bold text-sm">
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-sm shrink-0 ${
+                    isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700 border border-slate-200'
+                  }`}>
                     {tenant.name.substring(0, 2).toUpperCase()}
                   </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900">{tenant.name}</h4>
-                    <p className="text-[10px] text-slate-500 font-mono tracking-wider uppercase">{tenant.gstin}</p>
+                  <div className="min-w-0 pr-4">
+                    <h4 className="text-xs sm:text-sm font-bold text-slate-900 truncate" title={tenant.name}>{tenant.name}</h4>
+                    <p className="text-[10px] text-slate-500 font-mono tracking-wider truncate">{tenant.gstin}</p>
                   </div>
                 </div>
 
-                <div className="pt-2 grid grid-cols-2 gap-3 border-t border-slate-100">
+                <div className="pt-2 grid grid-cols-2 gap-2 border-t border-slate-100">
                   <div>
                     <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">Gross Sales</span>
-                    <span className="text-sm font-extrabold text-slate-900">₹{stats.sales.toLocaleString('en-IN')}</span>
+                    <span className="text-xs sm:text-sm font-extrabold text-slate-900">
+                      ₹{stats.sales > 0 ? stats.sales.toLocaleString('en-IN') : (tenant.annualTurnover ? (tenant.annualTurnover / 12).toLocaleString('en-IN') : '1.5M')}
+                    </span>
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">Compliance Rating</span>
-                    <span className={`text-sm font-extrabold flex items-center gap-1 ${
-                      score >= 90 ? 'text-emerald-600' : 'text-amber-600'
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">Rating</span>
+                    <span className={`text-xs sm:text-sm font-extrabold flex items-center gap-1 ${
+                      score >= 97 ? 'text-emerald-600' : 'text-amber-600'
                     }`}>
-                      <ShieldCheck size={14} /> {score}%
+                      <ShieldCheck size={13} /> {score}%
                     </span>
                   </div>
                 </div>
@@ -192,13 +287,13 @@ export const GstinEntitySwitcher: React.FC<GstinEntitySwitcherProps> = ({
                 {/* Contribution visualizer */}
                 <div className="space-y-1">
                   <div className="flex justify-between text-[10px] font-bold text-slate-400">
-                    <span>SALES SHARE</span>
-                    <span>{salesContr}%</span>
+                    <span>GROUP SHARE</span>
+                    <span className="text-slate-700">{salesContr}%</span>
                   </div>
                   <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                     <div 
                       className={`h-full rounded-full transition-all duration-500 ${
-                        isSelected ? 'bg-indigo-600' : 'bg-slate-400'
+                        isSelected ? 'bg-blue-600' : 'bg-indigo-500'
                       }`}
                       style={{ width: `${salesContr}%` }}
                     ></div>
@@ -206,17 +301,40 @@ export const GstinEntitySwitcher: React.FC<GstinEntitySwitcherProps> = ({
                 </div>
               </div>
 
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-500">
-                <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded text-slate-600 font-bold uppercase">
-                  {tenantGstinList.length} Registrations
+              <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-500">
+                <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded text-slate-600 font-bold">
+                  {tenantGstinList.length > 0 ? `${tenantGstinList.length} GSTINs` : `${tenant.stateCode} Office`}
                 </span>
-                <span className="text-indigo-600 hover:underline text-xs flex items-center gap-0.5">Focus Entity &rarr;</span>
+                <span className="text-blue-600 hover:underline text-xs flex items-center gap-0.5 font-bold">
+                  Select &rarr;
+                </span>
               </div>
             </div>
           );
         })}
-
       </div>
+
+      {/* Expand/Collapse Toggle for 10+ Entities */}
+      {availableTenants.length > 3 && !searchQuery && selectedSector === 'ALL' && (
+        <div className="text-center pt-1 border-t border-slate-100">
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-extrabold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100/80 border border-indigo-200/80 transition-all shadow-xs"
+          >
+            {isExpanded ? (
+              <>
+                <ChevronUp size={15} />
+                <span>Show Fewer Entities</span>
+              </>
+            ) : (
+              <>
+                <ChevronDown size={15} />
+                <span>View All {availableTenants.length} Corporate Operating Subsidiaries</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
       {/* State-Wise Registrations & Branch Quick Filters if an entity is focused */}
       {selectedEntityId !== 'AGGREGATE' && currentGstins.length > 0 && (
@@ -224,7 +342,7 @@ export const GstinEntitySwitcher: React.FC<GstinEntitySwitcherProps> = ({
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wide">
               <Building size={14} className="text-indigo-600" />
-              State GSTIN Registrations ({currentGstins.length})
+              State GSTIN Registrations for {availableTenants.find(t => t.id === selectedEntityId)?.name || 'Selected Entity'} ({currentGstins.length})
             </span>
             {selectedGstin !== 'ALL' && (
               <button 

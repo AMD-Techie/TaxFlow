@@ -173,7 +173,7 @@ const DocumentVaultPage: React.FC = () => {
   
   // UI States
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState<'ALL' | 'CERTIFICATE' | 'AUDIT_REPORT' | 'CORRESPONDENCE' | 'OTHER' | 'INVOICE' | 'OFFLINE_DRAFTS'>('ALL');
+  const [activeCategory, setActiveCategory] = useState<string>('ALL');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const [forceUpload, setForceUpload] = useState(false);
@@ -276,13 +276,24 @@ const DocumentVaultPage: React.FC = () => {
   const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false);
 
   // New Document Upload Form State
-  const [newDocData, setNewDocData] = useState({
+  const [newDocData, setNewDocData] = useState<{
+    title: string;
+    refNumber: string;
+    category: 'CERTIFICATE' | 'AUDIT_REPORT' | 'CORRESPONDENCE' | 'OTHER';
+    issueDate: string;
+    replyDeadline: string;
+    status: 'ACTIVE';
+    tagsString: string;
+    description: string;
+    authorityName: string;
+    isConfidential: boolean;
+  }>({
     title: '',
     refNumber: '',
-    category: 'CERTIFICATE' as const,
+    category: 'CERTIFICATE',
     issueDate: '',
     replyDeadline: '',
-    status: 'ACTIVE' as const,
+    status: 'ACTIVE',
     tagsString: '',
     description: '',
     authorityName: '',
@@ -1004,7 +1015,7 @@ const DocumentVaultPage: React.FC = () => {
                 title={`Roles: ${collection.allowedRoles.join(', ')}`}
               >
                 <div className="flex items-center gap-2">
-                  <collection.icon size={14} className={activeCategory === collection.id ? "text-blue-600" : "text-slate-400"} />
+                  <FolderKey size={14} className={activeCategory === collection.id ? "text-blue-600" : "text-slate-400"} />
                   <span>{collection.name}</span>
                 </div>
               </button>
@@ -2207,7 +2218,7 @@ const DocumentVaultPage: React.FC = () => {
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
                         <div className={`p-2 rounded-lg bg-slate-100 text-slate-600`}>
-                          <collection.icon size={16} />
+                          <FolderKey size={16} />
                         </div>
                         <div>
                           <h4 className="text-sm font-bold text-slate-800">{collection.name}</h4>

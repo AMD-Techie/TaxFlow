@@ -407,3 +407,75 @@ export type ResourceDomain =
   | 'PERIOD_CONTROL' 
   | 'AUDIT_VAULT' 
   | 'SYSTEM_SETTINGS';
+
+// ==========================================
+// 9. CONSOLIDATED EXECUTIVE ANALYTICS CONTRACTS
+// ==========================================
+
+export interface MonthlyGstTrendPoint {
+  name: string;                 // e.g., 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
+  periodCode?: string;          // e.g., '2026-09'
+  sales: number;                // Taxable Outward Supplies / Gross Sales (INR)
+  purchase: number;             // Taxable Inward Supplies / Gross Purchases (INR)
+  liability: number;            // Net Output Tax Liability (INR)
+  itc: number;                  // Input Tax Credit Eligible (INR)
+  outputLiability: number;      // Total Gross Output Liability (INR)
+  mismatches: number;           // Discrepancy Count
+  accuracy: number;             // Accuracy Percentage (0-100)
+}
+
+export interface SettlementMixItem {
+  name: string;                 // 'Cash Ledger' | 'Credit Ledger'
+  value: number;                // In INR
+  color: string;
+  percentage: number;
+}
+
+export interface EntityConsolidatedRollup {
+  companyId: string;
+  companyName: string;
+  gstinCount: number;
+  sales: number;
+  purchases: number;
+  liability: number;
+  itc: number;
+  filingComplianceRate: number; // Percentage, e.g. 98.5
+  pendingExceptions: number;
+  status: 'COMPLIANT' | 'NEEDS_ATTENTION' | 'CRITICAL_RISK';
+}
+
+export interface MonthlyConsolidatedGstSummaryDto {
+  groupId: string;
+  groupName: string;
+  taxPeriod: string;
+  currency: string;
+  timeRange: 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY';
+  totalEntities: number;
+  totalGstins: number;
+  totals: {
+    totalSales: number;
+    totalPurchases: number;
+    totalOutputTax: number;
+    totalEligibleItc: number;
+    netTaxLiability: number;
+    totalSettled: number;
+    cashLedgerBalance: number;
+    creditLedgerBalance: number;
+  };
+  monthlyTrends: MonthlyGstTrendPoint[];
+  settlementMix: {
+    cashLedgerAmount: number;
+    creditLedgerAmount: number;
+    totalPaid: number;
+    items: SettlementMixItem[];
+  };
+  entityRollups: EntityConsolidatedRollup[];
+  riskMetrics: {
+    mismatchedInvoices: number;
+    activeExceptionsCount: number;
+    unreconciledTaxDisparity: number;
+    auditComplianceScore: number;
+  };
+  generatedAt: string;
+  correlationId: string;
+}

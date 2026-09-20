@@ -22,6 +22,7 @@ import { Languages,
   AlertTriangle,
   History,
   ShieldCheck,
+  ShieldAlert,
   UserCheck,
   Users,
   Cloud,
@@ -38,7 +39,8 @@ import { Languages,
   Landmark,
   BookOpen,
   Percent,
-  Archive
+  Archive,
+  BarChart3
 } from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, logout, switchTenant, setSelectedGstin, setSelectedBranch } from '../store/store';
@@ -169,33 +171,34 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPath, onNavigate }) =>
     ? currentTenantBranches
     : currentTenantBranches.filter(b => b.gstin === selectedGstin);
 
-  // Role Based Menu Configuration
+  // Role Based Menu Configuration - Real-Time Workflow RBAC
   const allMenuItems = [
-    { label: t('nav.dashboard'), icon: LayoutDashboard, path: '/', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.FINANCE_MANAGER, UserRole.VIEWER] },
-    { label: t('nav.control_tower'), icon: Radio, path: '/control-tower', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.FINANCE_MANAGER, UserRole.VIEWER] },
-    { label: t('nav.organization'), icon: Building2, path: '/organization', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.FINANCE_MANAGER] },
-    { label: t('nav.parties'), icon: Users, path: '/parties', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.FINANCE_MANAGER, UserRole.VIEWER] },
-    { label: t('nav.invoices'), icon: FileText, path: '/invoices', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.FINANCE_MANAGER, UserRole.VIEWER] },
-    { label: t('nav.einvoice'), icon: QrCode, path: '/einvoice', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.FINANCE_MANAGER, UserRole.VIEWER] },
-    { label: t('nav.ewaybill'), icon: Truck, path: '/ewaybill', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.FINANCE_MANAGER, UserRole.VIEWER] },
-    { label: t('nav.compliance'), icon: Bell, path: '/compliance', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.FINANCE_MANAGER, UserRole.VIEWER] },
-    { label: 'Compliance Archive', icon: Archive, path: '/compliance-archive', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.FINANCE_MANAGER, UserRole.VIEWER] },
-    { label: t('nav.tx_compliance'), icon: ShieldCheck, path: '/transaction-compliance', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.FINANCE_MANAGER, UserRole.VIEWER] },
-    { label: t('nav.rate_calculator'), icon: Percent, path: '/rate-calculator', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.FINANCE_MANAGER, UserRole.VIEWER] },
-    { label: t('nav.computation'), icon: Calculator, path: '/computation', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.FINANCE_MANAGER] },
-    { label: t('nav.reconciliation'), icon: RefreshCw, path: '/reconciliation', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.FINANCE_MANAGER] },
-    { label: t('nav.data_quality'), icon: Cpu, path: '/data-quality', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.FINANCE_MANAGER, UserRole.VIEWER] },
-    { label: t('nav.exceptions'), icon: AlertTriangle, path: '/exceptions', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.FINANCE_MANAGER, UserRole.VIEWER] },
-    { label: t('nav.filing'), icon: Send, path: '/filing', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.FINANCE_MANAGER] },
-    { label: t('nav.approvals'), icon: UserCheck, path: '/approvals', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.FINANCE_MANAGER] },
-    { label: t('nav.risk'), icon: AlertTriangle, path: '/risk-analysis', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.FINANCE_MANAGER] },
-    { label: t('nav.tax_forecast'), icon: TrendingUp, path: '/tax-forecasting', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.FINANCE_MANAGER] },
-    { label: t('nav.vault'), icon: ShieldCheck, path: '/vault', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.FINANCE_MANAGER, UserRole.VIEWER] },
-    { label: t('nav.refunds'), icon: Landmark, path: '/refunds', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.FINANCE_MANAGER, UserRole.VIEWER] },
-    { label: 'Regulatory Intelligence', icon: BookOpen, path: '/regulatory-intelligence', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.FINANCE_MANAGER, UserRole.VIEWER] },
-    { label: t('nav.reports'), icon: PieChart, path: '/reports', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.FINANCE_MANAGER, UserRole.VIEWER] },
-    { label: t('nav.integrations'), icon: Blocks, path: '/integrations', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT] },
-    { label: t('nav.audit'), icon: History, path: '/audit', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.FINANCE_MANAGER] },
+    { label: t('nav.dashboard'), icon: LayoutDashboard, path: '/', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE_MANAGER, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.VIEWER] },
+    { label: t('nav.control_tower'), icon: Radio, path: '/control-tower', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE_MANAGER, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.VIEWER] },
+    { label: t('nav.organization'), icon: Building2, path: '/organization', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE_MANAGER] },
+    { label: t('nav.parties'), icon: Users, path: '/parties', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE_MANAGER, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.VIEWER] },
+    { label: t('nav.invoices'), icon: FileText, path: '/invoices', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE_MANAGER, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.VIEWER] },
+    { label: t('nav.einvoice'), icon: QrCode, path: '/einvoice', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE_MANAGER, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.VIEWER] },
+    { label: t('nav.ewaybill'), icon: Truck, path: '/ewaybill', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE_MANAGER, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.VIEWER] },
+    { label: t('nav.compliance'), icon: Bell, path: '/compliance', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE_MANAGER, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.VIEWER] },
+    { label: 'Compliance Archive', icon: Archive, path: '/compliance-archive', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE_MANAGER, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.VIEWER] },
+    { label: t('nav.tx_compliance'), icon: ShieldCheck, path: '/transaction-compliance', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE_MANAGER, UserRole.ACCOUNTANT, UserRole.VIEWER] },
+    { label: t('nav.rate_calculator'), icon: Percent, path: '/rate-calculator', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE_MANAGER, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.VIEWER] },
+    { label: 'HSN / SAC Lookup', icon: Search, path: '/hsn-lookup', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE_MANAGER, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.VIEWER] },
+    { label: t('nav.computation'), icon: Calculator, path: '/computation', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE_MANAGER, UserRole.ACCOUNTANT] },
+    { label: t('nav.reconciliation'), icon: RefreshCw, path: '/reconciliation', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE_MANAGER, UserRole.ACCOUNTANT, UserRole.AUDITOR] },
+    { label: t('nav.data_quality'), icon: Cpu, path: '/data-quality', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE_MANAGER, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.VIEWER] },
+    { label: t('nav.exceptions'), icon: AlertTriangle, path: '/exceptions', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE_MANAGER, UserRole.ACCOUNTANT, UserRole.AUDITOR] },
+    { label: t('nav.filing'), icon: Send, path: '/filing', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE_MANAGER, UserRole.ACCOUNTANT] },
+    { label: t('nav.approvals'), icon: UserCheck, path: '/approvals', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE_MANAGER, UserRole.ACCOUNTANT, UserRole.AUDITOR] },
+    { label: t('nav.risk'), icon: AlertTriangle, path: '/risk-analysis', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE_MANAGER, UserRole.AUDITOR] },
+    { label: t('nav.tax_forecast'), icon: TrendingUp, path: '/tax-forecasting', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE_MANAGER] },
+    { label: t('nav.vault'), icon: ShieldCheck, path: '/vault', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE_MANAGER, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.VIEWER] },
+    { label: t('nav.refunds'), icon: Landmark, path: '/refunds', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE_MANAGER, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.VIEWER] },
+    { label: 'Regulatory Intelligence', icon: BookOpen, path: '/regulatory-intelligence', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE_MANAGER, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.VIEWER] },
+    { label: t('nav.reports'), icon: PieChart, path: '/reports', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE_MANAGER, UserRole.ACCOUNTANT, UserRole.AUDITOR, UserRole.VIEWER] },
+    { label: t('nav.integrations'), icon: Blocks, path: '/integrations', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN] },
+    { label: t('nav.audit'), icon: History, path: '/audit', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE_MANAGER, UserRole.AUDITOR] },
     { label: t('nav.settings'), icon: Settings, path: '/settings', roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN] },
   ];
 
@@ -257,7 +260,9 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPath, onNavigate }) =>
         {/* Navigation */}
         <nav className="flex-1 px-3 py-5 space-y-1 overflow-y-auto custom-scrollbar">
           {menuItems.map((item) => {
-            const isActive = currentPath === item.path;
+            const isActive = item.path === '/reconciliation' 
+              ? currentPath.startsWith('/reconciliation')
+              : currentPath === item.path || (item.path === '/' && (currentPath === '/dashboard' || currentPath === ''));
             return (
               <button
                 key={item.path}
@@ -503,7 +508,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPath, onNavigate }) =>
                       <button
                         key={lang.code}
                         onClick={() => {
-                          setLanguage(lang.code);
+                          setLanguage(lang.code as any);
                           setIsLangMenuOpen(false);
                         }}
                         className={`w-full text-left px-3 py-2 text-sm rounded-lg flex items-center justify-between transition-colors ${language === lang.code ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-700 hover:bg-slate-100'}`}

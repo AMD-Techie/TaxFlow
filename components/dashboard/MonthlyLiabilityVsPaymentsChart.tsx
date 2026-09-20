@@ -184,7 +184,7 @@ export const MonthlyLiabilityVsPaymentsChart: React.FC<MonthlyLiabilityVsPayment
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-6 lg:p-7 shadow-sm space-y-6 relative overflow-hidden">
+    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6 relative overflow-hidden">
       {/* Header section */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-slate-100 pb-5">
         <div>

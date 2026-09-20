@@ -1,10 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import { ShieldCheck, AlertTriangle, AlertCircle, FileText, CheckCircle2, Sliders, Activity, Search, Filter } from 'lucide-react';
 import { fetchInvoices } from '../services/api';
 import { RootState } from '../store/store';
 import { Invoice } from '../types';
+import { TxCompliancePagination } from '../components/TxCompliancePagination';
 
 interface ComplianceRuleResult {
   id: string;
@@ -23,6 +24,8 @@ export const TransactionCompliancePage: React.FC = () => {
   
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState<'ALL' | 'HSN' | 'GSTIN' | 'TAX_POS'>('ALL');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
 
   const { data: invoices, isLoading } = useQuery({
     queryKey: ['invoices', tenantId],
@@ -154,14 +157,35 @@ export const TransactionCompliancePage: React.FC = () => {
     return results;
   }, [invoices]);
 
-  const filteredResults = complianceResults.filter(res => {
-    if (filterCategory !== 'ALL' && res.category !== filterCategory) return false;
-    if (searchTerm && !res.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) && !res.partyName.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-    return true;
-  });
+  const filteredResults = useMemo(() => {
+    return complianceResults.filter(res => {
+      if (filterCategory !== 'ALL' && res.category !== filterCategory) return false;
+      if (searchTerm && !res.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) && !res.partyName.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+      return true;
+    });
+  }, [complianceResults, filterCategory, searchTerm]);
 
-  const highCount = complianceResults.filter(r => r.severity === 'HIGH').length;
-  const mediumCount = complianceResults.filter(r => r.severity === 'MEDIUM').length;
+  const totalPages = Math.max(1, Math.ceil(filteredResults.length / pageSize));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const paginatedResults = useMemo(() => {
+    const startIndex = (safeCurrentPage - 1) * pageSize;
+    return filteredResults.slice(startIndex, startIndex + pageSize);
+  }, [filteredResults, safeCurrentPage, pageSize]);
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(1);
+  };
+
+  const handleCategoryChange = (cat: 'ALL' | 'HSN' | 'GSTIN' | 'TAX_POS') => {
+    setFilterCategory(prev => prev === cat && cat !== 'ALL' ? 'ALL' : cat);
+    setCurrentPage(1);
+  };
+
+  const hsnCount = complianceResults.filter(r => r.category === 'HSN').length;
+  const gstinCount = complianceResults.filter(r => r.category === 'GSTIN').length;
+  const posCount = complianceResults.filter(r => r.category === 'TAX_POS').length;
 
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-6">
@@ -191,42 +215,68 @@ export const TransactionCompliancePage: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-           <div className="flex justify-between items-start mb-4">
+        <button
+          type="button"
+          onClick={() => handleCategoryChange('HSN')}
+          className={`text-left bg-white p-5 rounded-xl border transition-all cursor-pointer shadow-sm flex flex-col justify-between ${
+            filterCategory === 'HSN'
+              ? 'ring-2 ring-blue-500 border-blue-500 bg-blue-50/20'
+              : 'border-slate-200 hover:border-slate-300'
+          }`}
+        >
+           <div className="flex justify-between items-start mb-4 w-full">
              <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
                <Activity size={20} />
              </div>
-             <span className="text-2xl font-black text-slate-800">{complianceResults.filter(r => r.category === 'HSN').length}</span>
+             <span className="text-2xl font-black text-slate-800">{hsnCount}</span>
            </div>
            <div>
              <h3 className="font-bold text-slate-800 text-sm">HSN Enforcement</h3>
              <p className="text-xs text-slate-500 mt-0.5">Line-item 6/8-digit mandates</p>
            </div>
-        </div>
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-           <div className="flex justify-between items-start mb-4">
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleCategoryChange('GSTIN')}
+          className={`text-left bg-white p-5 rounded-xl border transition-all cursor-pointer shadow-sm flex flex-col justify-between ${
+            filterCategory === 'GSTIN'
+              ? 'ring-2 ring-purple-500 border-purple-500 bg-purple-50/20'
+              : 'border-slate-200 hover:border-slate-300'
+          }`}
+        >
+           <div className="flex justify-between items-start mb-4 w-full">
              <div className="p-2 bg-purple-50 text-purple-600 rounded-lg">
                <CheckCircle2 size={20} />
              </div>
-             <span className="text-2xl font-black text-slate-800">{complianceResults.filter(r => r.category === 'GSTIN').length}</span>
+             <span className="text-2xl font-black text-slate-800">{gstinCount}</span>
            </div>
            <div>
              <h3 className="font-bold text-slate-800 text-sm">GSTIN Checksums</h3>
              <p className="text-xs text-slate-500 mt-0.5">Counterparty format validation</p>
            </div>
-        </div>
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-           <div className="flex justify-between items-start mb-4">
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleCategoryChange('TAX_POS')}
+          className={`text-left bg-white p-5 rounded-xl border transition-all cursor-pointer shadow-sm flex flex-col justify-between ${
+            filterCategory === 'TAX_POS'
+              ? 'ring-2 ring-orange-500 border-orange-500 bg-orange-50/20'
+              : 'border-slate-200 hover:border-slate-300'
+          }`}
+        >
+           <div className="flex justify-between items-start mb-4 w-full">
              <div className="p-2 bg-orange-50 text-orange-600 rounded-lg">
                <Sliders size={20} />
              </div>
-             <span className="text-2xl font-black text-slate-800">{complianceResults.filter(r => r.category === 'TAX_POS').length}</span>
+             <span className="text-2xl font-black text-slate-800">{posCount}</span>
            </div>
            <div>
              <h3 className="font-bold text-slate-800 text-sm">POS & Tax Rules</h3>
              <p className="text-xs text-slate-500 mt-0.5">Inter/Intrastate consistency</p>
            </div>
-        </div>
+        </button>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col">
@@ -237,19 +287,19 @@ export const TransactionCompliancePage: React.FC = () => {
                type="text" 
                placeholder="Search invoice or party..." 
                value={searchTerm}
-               onChange={(e) => setSearchTerm(e.target.value)}
+               onChange={(e) => handleSearchChange(e.target.value)}
                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
              />
            </div>
-           <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto">
+           <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
              <Filter size={16} className="text-slate-400 shrink-0" />
              {(['ALL', 'HSN', 'GSTIN', 'TAX_POS'] as const).map(cat => (
                <button
                  key={cat}
-                 onClick={() => setFilterCategory(cat)}
-                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap ${
+                 onClick={() => handleCategoryChange(cat)}
+                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap cursor-pointer ${
                    filterCategory === cat 
-                    ? 'bg-slate-800 text-white' 
+                    ? 'bg-slate-800 text-white shadow-xs' 
                     : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
                  }`}
                >
@@ -288,7 +338,7 @@ export const TransactionCompliancePage: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredResults.map(res => (
+                paginatedResults.map(res => (
                   <tr key={res.id} className="hover:bg-slate-50 transition-colors group">
                     <td className="p-4 align-top">
                       <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-black tracking-wide ${
@@ -322,6 +372,21 @@ export const TransactionCompliancePage: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        {!isLoading && filteredResults.length > 0 && (
+          <TxCompliancePagination
+            currentPage={safeCurrentPage}
+            totalItems={filteredResults.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setCurrentPage(1);
+            }}
+            itemLabel="anomalies"
+            pageSizeOptions={[5, 10, 20, 50]}
+          />
+        )}
       </div>
     </div>
   );

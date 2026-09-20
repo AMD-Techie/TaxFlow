@@ -350,7 +350,7 @@ export const TaxLiabilityMlForecast: React.FC<TaxLiabilityMlForecastProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm space-y-8 relative overflow-hidden">
+    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6 relative overflow-hidden">
       
       {/* Decorative Glow Elements */}
       <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />

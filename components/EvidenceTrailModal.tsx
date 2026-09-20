@@ -253,8 +253,8 @@ export const EvidenceTrailModal: React.FC<EvidenceTrailModalProps> = ({ isOpen, 
                   {invoice.ewayBillDetails && (
                     <div className="bg-white border border-slate-200/60 rounded-lg p-2.5 mt-2 flex justify-between items-center text-[10px]">
                       <div>
-                        <div className="font-bold text-slate-700">E-Way Bill: {invoice.ewayBillDetails.ewayBillNumber}</div>
-                        <div className="text-slate-500 text-[9px] mt-0.5">Vehicle: {invoice.ewayBillDetails.vehicleNumber || 'N/A'} | Valid: {invoice.ewayBillDetails.validUntil || 'N/A'}</div>
+                        <div className="font-bold text-slate-700">E-Way Bill: {invoice.ewayBillDetails.ewayBillNo || (invoice.ewayBillDetails as any).ewayBillNumber}</div>
+                        <div className="text-slate-500 text-[9px] mt-0.5">Vehicle: {invoice.ewayBillDetails.vehicleNo || (invoice.ewayBillDetails as any).vehicleNumber || 'N/A'} | Valid: {invoice.ewayBillDetails.validUpto || (invoice.ewayBillDetails as any).validUntil || 'N/A'}</div>
                       </div>
                       <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-black uppercase text-[8px]">
                         {invoice.ewayBillDetails.status}

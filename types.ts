@@ -141,7 +141,17 @@ export interface Tenant {
   address: string;
   logoUrl?: string;
   stateCode: string; // e.g., '27' for MH
+  stateName?: string;
+  sector?: string;
+  entityType?: 'HOLDING' | 'SUBSIDIARY' | 'JOINT_VENTURE' | 'SPV' | 'SEZ_UNIT' | 'BRANCH';
   isSez?: boolean;
+  filingStatus?: 'COMPLIANT' | 'NEEDS_ATTENTION' | 'CRITICAL_RISK';
+  complianceScore?: number;
+  gstinCount?: number;
+  branchCount?: number;
+  annualTurnover?: number;
+  revenueContributionPct?: number;
+  pendingExceptionsCount?: number;
   gstinRegistrations?: GstinRegistrationItem[];
   branches?: BranchDetailsItem[];
 }
@@ -369,6 +379,21 @@ export interface Invoice {
   recipientGstin?: string;
   branchId?: string;
   branchName?: string;
+
+  // ERP & Ledger Ingestion Metadata
+  sourceErp?: string;
+  ledgerSyncMeta?: {
+    erpId: string;
+    syncTime: string;
+    voucherType: string;
+    originalVoucherId?: string;
+  };
+  itcDetails?: {
+    eligible: boolean;
+    category?: string;
+    taxAmount: number;
+    reversalReason?: string;
+  };
 }
 
 export interface AutomationRuleCondition {
@@ -567,13 +592,19 @@ export type AnomalyCategory =
   | 'LATE_FILING_RISK' 
   | 'UNUSUAL_TAX_HEAD_RATIO'
   | 'VENDOR_BLACK_LISTED'
-  | 'HSN_MISMATCH';
+  | 'HSN_MISMATCH'
+  | 'ITC_BLOCK_17_5'
+  | 'RCM_OMISSION'
+  | 'EWAY_VALUE_VARIANCE'
+  | 'RULE_36_4_EXCESS';
 
 export interface AnomalyRecord {
   id: string;
   tenantId?: string;
   invoiceId?: string;
   invoiceNumber?: string;
+  partyGstin?: string;
+  partyName?: string;
   category: AnomalyCategory;
   severity: 'HIGH' | 'MEDIUM' | 'LOW';
   description: string;
@@ -582,6 +613,16 @@ export interface AnomalyRecord {
   recommendation: string;
   status: 'PENDING' | 'RESOLVED' | 'IGNORED';
   confidence: number;
+  statutoryRule?: string;
+  taxHeadBreakdown?: {
+    cgst: number;
+    sgst: number;
+    igst: number;
+    cess?: number;
+  };
+  resolutionNotes?: string;
+  resolvedAt?: string;
+  resolvedBy?: string;
 }
 
 // Update AiRiskRecord to use AnomalyCategory
@@ -657,13 +698,62 @@ export interface HSNCode {
   itcEligibility?: 'ELIGIBLE' | 'INELIGIBLE' | 'CONDITIONAL';
   conditions?: string;
   uqc?: string;
+  // Enhanced statutory metadata
+  sector?: string;
+  schedule?: string;
+  notificationNo?: string;
+  effectiveDate?: string;
+  isExempt?: boolean;
+  exemptionNotification?: string;
+  exemptionCondition?: string;
+  rcmNotification?: string;
+  itcRestrictionNote?: string;
+  keywords?: string[];
+  rateHistory?: Array<{
+    effectiveDate: string;
+    oldRate: number;
+    newRate: number;
+    notification: string;
+    description: string;
+  }>;
+  councilDecision?: string;
+  digitsRequired?: 4 | 6 | 8;
+}
+
+export interface GovernmentNotification {
+  id: string;
+  notificationNo: string;
+  date: string;
+  title: string;
+  category: 'RATE_CHANGE' | 'EXEMPTION' | 'RCM' | 'CIRCULAR' | 'COUNCIL_DECISION';
+  applicableTo: 'GOODS' | 'SERVICES' | 'BOTH';
+  summary: string;
+  detailedNotes: string;
+  impactedHsnCodes: string[];
+  gstCouncilMeeting?: string;
+  gazetteRef?: string;
+  effectiveDate: string;
+  status: 'ACTIVE' | 'SUPERSEDED';
+  relevantSection?: string;
+}
+
+export interface GstExemptionItem {
+  id: string;
+  hsnSacCode: string;
+  category: 'GOODS' | 'SERVICES';
+  heading: string;
+  scopeOfExemption: string;
+  statutoryConditions: string;
+  notificationReference: string;
+  applicableLawClause: string;
+  itcImpact: string;
 }
 
 export interface SavedReport {
   id: string;
   name: string;
   description?: string;
-  tab: 'LIABILITY' | 'ITC' | 'VENDOR' | 'BRANCH' | 'AUDIT';
+  tab: 'LIABILITY' | 'ITC' | 'VENDOR' | 'BRANCH' | 'AUDIT' | 'BRANCH_COMPARISON' | 'REGIONAL_MAP' | string;
   filters: {
     startDate?: string;
     endDate?: string;
@@ -942,6 +1032,9 @@ export type WhatsAppTemplateType =
   | 'FILING_REMINDER'
   | 'RETURN_FILED_SUCCESS'
   | 'GST_RETURN_FILED'
+  | 'FILING_STATUS_UPDATE'
+  | 'FILING_DRAFT_READY'
+  | 'CLIENT_MONTHLY_DIGEST'
   | 'INVOICE_STATUS_NOTIFICATION'
   | 'PAYMENT_REMINDER'
   | 'PAYMENT_OVERDUE'
@@ -949,6 +1042,8 @@ export type WhatsAppTemplateType =
   | 'INVOICE_ISSUED'
   | 'E_INVOICE_GENERATED'
   | 'REFUND_STATUS'
+  | 'RECONCILIATION_MISMATCH'
+  | 'RECON_MISMATCH_ALERT'
   | 'CUSTOM';
 
 export interface WhatsAppMessageLog {
@@ -1040,6 +1135,57 @@ export interface AutomatedGstRemindersSummary {
     period: string;
     status: string;
     messageId?: string;
+  }>;
+}
+
+export interface WhatsAppGatewayStatus {
+  configured: boolean;
+  accountSid: string | null;
+  fromNumber: string;
+  mode: 'LIVE' | 'SANDBOX_SIMULATION';
+  totalLoggedMessages: number;
+  lastActiveTimestamp?: string;
+}
+
+export interface FilingStatusWhatsAppParams {
+  returnType: ReturnFormType | string;
+  period: string;
+  status: 'FILED' | 'PENDING' | 'OVERDUE' | 'DRAFT_READY' | 'REJECTED' | 'SAVED';
+  arn?: string;
+  filedDate?: string;
+  taxLiability?: number;
+  clientName: string;
+  recipientPhone: string;
+  recipientGstin?: string;
+  customNotes?: string;
+  includeReceiptLink?: boolean;
+}
+
+export interface WhatsAppClientItem {
+  id: string;
+  name: string;
+  tradeName?: string;
+  gstin: string;
+  phone: string;
+  email?: string;
+  category?: 'REGULAR' | 'COMPOSITION' | 'QRMP' | 'TDS_DEDUCTOR' | string;
+  taxpayerCategory?: string;
+  currentFiling?: {
+    returnType: ReturnFormType | string;
+    period: string;
+    status: 'FILED' | 'PENDING' | 'OVERDUE' | 'DRAFT_READY' | string;
+    dueDate: string;
+    arn?: string;
+    taxLiability?: number;
+    filedDate?: string;
+  };
+  filings?: Array<{
+    returnType: ReturnFormType | string;
+    period: string;
+    status: 'FILED' | 'PENDING' | 'OVERDUE' | string;
+    dueDate: string;
+    arn?: string;
+    taxLiability?: number;
   }>;
 }
 

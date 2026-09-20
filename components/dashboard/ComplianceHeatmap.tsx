@@ -84,7 +84,7 @@ export const ComplianceHeatmap: React.FC = () => {
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
+    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6">
       
       {/* Header and Filter triggers */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">

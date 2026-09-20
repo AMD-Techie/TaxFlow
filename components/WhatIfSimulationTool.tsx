@@ -554,7 +554,9 @@ export const WhatIfSimulationTool: React.FC<WhatIfSimulationToolProps> = ({
               <div className="flex justify-between items-center text-xs font-bold text-slate-700">
                 <label className="flex items-center gap-1.5">
                   <span>Sales Volume Delta (%):</span>
-                  <Info size={13} className="text-slate-400" title="Simulates a percentage change in outward taxable sales revenue." />
+                  <span title="Simulates a percentage change in outward taxable sales revenue.">
+                    <Info size={13} className="text-slate-400" />
+                  </span>
                 </label>
                 <span className={`font-mono text-sm ${salesVolumePct > 0 ? 'text-emerald-600' : salesVolumePct < 0 ? 'text-rose-600' : 'text-slate-800'}`}>
                   {salesVolumePct > 0 ? `+${salesVolumePct}%` : `${salesVolumePct}%`}
@@ -687,7 +689,9 @@ export const WhatIfSimulationTool: React.FC<WhatIfSimulationToolProps> = ({
               <div className="flex justify-between items-center text-xs font-bold text-slate-700">
                 <label className="flex items-center gap-1">
                   <span>Sec 17(5) Ineligible Blocked ITC Reversal:</span>
-                  <Info size={13} className="text-slate-400" title="Motor vehicles, food/catering, personal consumption, lost goods blocked credit reversal." />
+                  <span title="Motor vehicles, food/catering, personal consumption, lost goods blocked credit reversal.">
+                    <Info size={13} className="text-slate-400" />
+                  </span>
                 </label>
                 <span className="font-mono text-sm text-rose-600">
                   {sec17BlockedPct}% (-₹{simulation.blockedItcAmount.toLocaleString()})
@@ -717,7 +721,9 @@ export const WhatIfSimulationTool: React.FC<WhatIfSimulationToolProps> = ({
               <div className="flex justify-between items-center text-xs font-bold text-slate-700">
                 <label className="flex items-center gap-1">
                   <span>Vendor GSTR-2B Non-Filing Haircut (%):</span>
-                  <Info size={13} className="text-slate-400" title="Simulates ITC withheld or unreflected in GSTR-2B due to non-filing vendors." />
+                  <span title="Simulates ITC withheld or unreflected in GSTR-2B due to non-filing vendors.">
+                    <Info size={13} className="text-slate-400" />
+                  </span>
                 </label>
                 <span className="font-mono text-sm text-amber-600">
                   {vendorRiskHaircutPct}% (-₹{simulation.vendorRiskHaircutAmount.toLocaleString()})

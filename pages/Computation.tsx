@@ -30,7 +30,7 @@ const Computation: React.FC = () => {
   const selectedGstin = useSelector((state: RootState) => state.org.selectedGstin);
   const selectedBranchId = useSelector((state: RootState) => state.org.selectedBranchId);
   const tenantId = user?.currentTenantId || 't1';
-  const [activeTab, setActiveTab] = useState<'STATUTORY_ENGINE' | 'LIABILITY' | 'ESTIMATOR' | 'SIMULATOR' | 'MAPPING' | 'AI_RISK' | 'TOOLS'>('STATUTORY_ENGINE');
+  const [activeTab, setActiveTab] = useState<'STATUTORY_ENGINE' | 'LIABILITY' | 'ESTIMATOR' | 'SIMULATOR' | 'MAPPING' | 'AI_RISK' | 'TOOLS' | 'LEDGER'>('STATUTORY_ENGINE');
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
   const [isFilingWizardOpen, setIsFilingWizardOpen] = useState(false);
   const [period] = useState('July 2026');
@@ -90,68 +90,96 @@ const Computation: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      {/* Top Header Bar: Title & GSTIN Scope on Left, Primary Actions on Right */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
         <div>
-          <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-bold text-slate-800">Tax Computation Engine</h2>
-            {selectedGstin !== 'ALL' && (
-              <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold font-mono">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h2 className="text-2xl font-black text-slate-800 tracking-tight">Tax Computation Engine</h2>
+            {selectedGstin !== 'ALL' ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200/80 rounded-lg text-xs font-bold font-mono shadow-xs">
+                <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
                 GSTIN: {selectedGstin}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold shadow-xs">
+                All Registrations (Consolidated)
               </span>
             )}
           </div>
-          <p className="text-slate-500 text-sm">
+          <p className="text-slate-500 text-sm mt-1 max-w-2xl leading-relaxed">
             {selectedGstin === 'ALL' 
-              ? 'Consolidated liability, compliance mapping, and ITC set-off across all registrations.' 
+              ? 'Consolidated statutory liability, compliance rule mapping, and ITC set-off across all GST registrations.' 
               : `Scoped computation and tax position for GSTIN registration ${selectedGstin}.`}
           </p>
         </div>
-        <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-lg overflow-x-auto gap-2">
-           <button 
-             onClick={() => setIsFilingWizardOpen(true)}
-             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-bold rounded-md hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md active:scale-95 no-print"
-             title="Launch Official Automated GST Filing Wizard"
-           >
-             <Sparkles size={16}/> Automated GST Filing
-           </button>
-           <button 
-             onClick={() => setIsSummaryModalOpen(true)}
-             className="flex items-center gap-2 px-4 py-2 bg-white text-slate-700 border border-slate-300 text-sm font-bold rounded-md hover:bg-slate-50 transition-all shadow-sm active:scale-95 no-print"
-           >
-             <FileBarChart size={16}/> Tax Summary
-           </button>
-           <button 
-             onClick={() => {
-               if (taxData) {
-                 const currentTenant = user?.availableTenants.find(t => t.id === tenantId);
-                 generateGstSummaryPdf(taxData, period, currentTenant);
-               }
-             }}
-             disabled={!taxData || isTaxLoading}
-             className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-md hover:bg-emerald-700 transition-all shadow-md active:scale-95 no-print disabled:opacity-50"
-             title="Download Consolidated Monthly GST Summary Report as PDF"
-           >
-             <Download size={16}/> Download PDF Report
-           </button>
-           {[
-               { id: 'STATUTORY_ENGINE', label: 'Multi-Tier Statutory Engine', icon: Scale },
-               { id: 'LIABILITY', label: 'Liability & ITC Summary', icon: Calculator },
-               { id: 'LEDGER', label: 'Cash & Credit Ledger', icon: Wallet },
-               { id: 'ESTIMATOR', label: 'Quarterly Estimator', icon: TrendingUp },
-               { id: 'SIMULATOR', label: "'What-If' Simulation", icon: Sliders },
-               { id: 'MAPPING', label: 'GSTR Mapping', icon: Table2 },
-               { id: 'AI_RISK', label: 'AI Risk Check', icon: BrainCircuit },
-               { id: 'TOOLS', label: 'Tax Tools', icon: Search },
-           ].map(tab => (
-               <button 
-                 key={tab.id}
-                 onClick={() => setActiveTab(tab.id as any)}
-                 className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-all whitespace-nowrap ${activeTab === tab.id ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
-               >
-                 <tab.icon size={16}/> {tab.label}
-               </button>
-           ))}
+
+        {/* Primary Action Buttons */}
+        <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap w-full lg:w-auto shrink-0 no-print">
+          <button 
+            onClick={() => setIsFilingWizardOpen(true)}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-black rounded-xl transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer whitespace-nowrap"
+            title="Launch Official Automated GST Filing Wizard"
+          >
+            <Sparkles size={16} className="text-blue-100" />
+            <span>Automated GST Filing</span>
+          </button>
+
+          <button 
+            onClick={() => setIsSummaryModalOpen(true)}
+            className="flex items-center justify-center gap-2 px-3.5 py-2.5 bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-xs font-bold rounded-xl transition-all shadow-xs active:scale-95 cursor-pointer whitespace-nowrap"
+            title="View Tax Position Summary"
+          >
+            <FileBarChart size={16} className="text-slate-500" />
+            <span>Tax Summary</span>
+          </button>
+
+          <button 
+            onClick={() => {
+              if (taxData) {
+                const currentTenant = user?.availableTenants.find(t => t.id === tenantId);
+                generateGstSummaryPdf(taxData, period, currentTenant);
+              }
+            }}
+            disabled={!taxData || isTaxLoading}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+            title="Download Consolidated Monthly GST Summary Report as PDF"
+          >
+            <Download size={16} className="text-emerald-100" />
+            <span>Download PDF Report</span>
+          </button>
         </div>
+      </div>
+
+      {/* Module Navigation Tabs Bar - Dedicated Full-Width Container */}
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-1.5 shadow-xs overflow-x-auto">
+        <nav className="flex items-center gap-1.5 min-w-max" aria-label="Tax Engine Modules">
+          {[
+            { id: 'STATUTORY_ENGINE', label: 'Multi-Tier Statutory Engine', icon: Scale },
+            { id: 'LIABILITY', label: 'Liability & ITC Summary', icon: Calculator },
+            { id: 'LEDGER', label: 'Cash & Credit Ledger', icon: Wallet },
+            { id: 'ESTIMATOR', label: 'Quarterly Estimator', icon: TrendingUp },
+            { id: 'SIMULATOR', label: "'What-If' Simulation", icon: Sliders },
+            { id: 'MAPPING', label: 'GSTR Mapping', icon: Table2 },
+            { id: 'AI_RISK', label: 'AI Risk Check', icon: BrainCircuit },
+            { id: 'TOOLS', label: 'Tax Tools', icon: Search },
+          ].map(tab => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button 
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                  isActive 
+                    ? 'bg-slate-900 text-white shadow-xs font-black' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                }`}
+              >
+                <tab.icon size={15} className={isActive ? 'text-blue-400' : 'text-slate-400'} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </nav>
       </div>
 
       <TaxSummaryModal 
@@ -681,7 +709,7 @@ const Computation: React.FC = () => {
           taxComputation={taxData}
           invoices={invoices}
           tenantId={tenantId}
-          user={user}
+          user={user as any}
           currentTenant={user?.availableTenants.find(t => t.id === tenantId)}
           initialPeriod={period}
           initialGstin={selectedGstin !== 'ALL' ? selectedGstin : undefined}

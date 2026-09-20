@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { FieldMappingConfiguration } from '../components/FieldMappingConfiguration';
 import { ConnectionHealthMonitor } from '../components/ConnectionHealthMonitor';
+import { OneClickErpImportModal } from '../components/OneClickErpImportModal';
+import { erpIntegrationService, SupportedErpId } from '../services/erpIntegrationService';
 import { 
   Check, ArrowRight, Loader2, Link as LinkIcon, AlertCircle, X, Key, Globe, Lock, 
   Server, ShieldCheck, Settings, Database, Calendar, History, Play, FileCheck, 
@@ -129,6 +131,125 @@ const Integrations: React.FC = () => {
   });
 
 
+
+  // One-Click ERP Import Modal State
+  const [isOneClickModalOpen, setIsOneClickModalOpen] = useState(false);
+  const [selectedErpForImport, setSelectedErpForImport] = useState<SupportedErpId | null>(null);
+
+  const handleOpenOneClickImport = (erpId?: string) => {
+    const validErpId = erpIntegrationService.normalizeErpId(erpId || 'tally');
+    setSelectedErpForImport(validErpId);
+    setIsOneClickModalOpen(true);
+  };
+
+  // Zoho Books State
+  const [zohoOrgId, setZohoOrgId] = useState('60019284712');
+  const [zohoClientId, setZohoClientId] = useState('1000.8B97X120A47189KLM');
+  const [zohoClientSecret, setZohoClientSecret] = useState('secret_zoho_live_9921b');
+  const [zohoDc, setZohoDc] = useState<'in' | 'com' | 'eu'>('in');
+  const [zohoTesting, setZohoTesting] = useState(false);
+  const [zohoTestResult, setZohoTestResult] = useState<{
+    status: 'SUCCESS' | 'ERROR' | null;
+    latencyMs: number;
+    organizationName: string;
+    currency: string;
+  } | null>(null);
+
+  const handleTestZohoConnection = () => {
+    setZohoTesting(true);
+    addLog(`ZOHO_BOOKS: Initiating OAuth 2.0 handshake with Zoho Books DC (.${zohoDc}) for Org ${zohoOrgId}...`);
+    setTimeout(() => {
+      setZohoTesting(false);
+      setZohoTestResult({
+        status: 'SUCCESS',
+        latencyMs: 78,
+        organizationName: 'TaxFlow Solutions India Pvt Ltd',
+        currency: 'INR (₹)'
+      });
+      erpIntegrationService.saveCredentials('zoho', {
+        clientId: zohoClientId,
+        clientSecret: zohoClientSecret,
+        organizationId: zohoOrgId,
+        dataCenter: zohoDc
+      });
+      setIntegrations(prev => prev.map(i => i.id === 'zoho' ? { ...i, status: 'CONNECTED', lastSync: 'Just now' } : i));
+      addLog(`ZOHO_BOOKS: OAuth 2.0 handshake successful! Connected to '${zohoOrgId}'. Latency: 78ms.`);
+    }, 950);
+  };
+
+  // SAP ERP (ECC / S4 HANA) State
+  const [sapHost, setSapHost] = useState('https://s4hana.taxflow-corp.internal:44300');
+  const [sapClientNo, setSapClientNo] = useState('100');
+  const [sapSystemId, setSapSystemId] = useState('PRD');
+  const [sapAuthType, setSapAuthType] = useState<'OAUTH' | 'BASIC' | 'API_KEY'>('API_KEY');
+  const [sapApiKey, setSapApiKey] = useState('sap_live_sec_884910ad');
+  const [sapTesting, setSapTesting] = useState(false);
+  const [sapTestResult, setSapTestResult] = useState<{
+    status: 'SUCCESS' | 'ERROR' | null;
+    latencyMs: number;
+    systemRelease: string;
+    companyCodes: string[];
+  } | null>(null);
+
+  const handleTestSapConnection = () => {
+    setSapTesting(true);
+    addLog(`SAP_ERP: Connecting to SAP S/4HANA OData catalog at ${sapHost} (Client: ${sapClientNo}, SID: ${sapSystemId})...`);
+    setTimeout(() => {
+      setSapTesting(false);
+      setSapTestResult({
+        status: 'SUCCESS',
+        latencyMs: 142,
+        systemRelease: 'SAP S/4HANA 2023 FPS01 / NetWeaver 7.58',
+        companyCodes: ['1000 (India HQ)', '1100 (West Plant)', '1200 (South DC)']
+      });
+      erpIntegrationService.saveCredentials('sap', {
+        host: sapHost,
+        clientNumber: sapClientNo,
+        systemId: sapSystemId,
+        apiKey: sapApiKey,
+        authType: sapAuthType
+      });
+      setIntegrations(prev => prev.map(i => i.id === 'sap' ? { ...i, status: 'CONNECTED', lastSync: 'Just now' } : i));
+      addLog(`SAP_ERP: RFC & OData V2 Catalog Verified! Discovered 3 Company Codes. Latency: 142ms.`);
+    }, 1150);
+  };
+
+  // Oracle NetSuite State
+  const [oracleAccountId, setOracleAccountId] = useState('TSTDRV1984210');
+  const [oracleConsumerKey, setOracleConsumerKey] = useState('98d1a4e810a9c849102b');
+  const [oracleConsumerSecret, setOracleConsumerSecret] = useState('sec_netsuite_consumer_881');
+  const [oracleTokenId, setOracleTokenId] = useState('tok_netsuite_7721a');
+  const [oracleTokenSecret, setOracleTokenSecret] = useState('sec_netsuite_tok_9918');
+  const [oracleTesting, setOracleTesting] = useState(false);
+  const [oracleTestResult, setOracleTestResult] = useState<{
+    status: 'SUCCESS' | 'ERROR' | null;
+    latencyMs: number;
+    subsidiary: string;
+    suiteTaxEnabled: boolean;
+  } | null>(null);
+
+  const handleTestOracleConnection = () => {
+    setOracleTesting(true);
+    addLog(`ORACLE_NETSUITE: Verifying TBA (Token-Based Authentication HMAC-SHA256) for Account '${oracleAccountId}'...`);
+    setTimeout(() => {
+      setOracleTesting(false);
+      setOracleTestResult({
+        status: 'SUCCESS',
+        latencyMs: 164,
+        subsidiary: 'India Commercial Operations Ltd (ID: 4)',
+        suiteTaxEnabled: true
+      });
+      erpIntegrationService.saveCredentials('oracle', {
+        accountId: oracleAccountId,
+        consumerKey: oracleConsumerKey,
+        consumerSecret: oracleConsumerSecret,
+        tokenId: oracleTokenId,
+        tokenSecret: oracleTokenSecret
+      });
+      setIntegrations(prev => prev.map(i => i.id === 'oracle' ? { ...i, status: 'CONNECTED', lastSync: 'Just now' } : i));
+      addLog(`ORACLE_NETSUITE: SuiteTalk REST Web Services & SuiteTax engine verified! Latency: 164ms.`);
+    }, 1050);
+  };
 
   // Xero State
   const [xeroTenantId, setXeroTenantId] = useState('');
@@ -741,6 +862,206 @@ const Integrations: React.FC = () => {
 
   function renderConnectionTab() {
     if (!activeIntegration) return null;
+
+    if (activeIntegration.id === 'zoho') {
+      return (
+        <div className="space-y-4 pt-2 text-xs">
+          <div className="p-4 bg-blue-50/70 border border-blue-200/80 rounded-xl flex items-start gap-3">
+            <div className="p-2 bg-blue-100 text-blue-700 rounded-lg shrink-0">
+              <Server size={18} />
+            </div>
+            <div className="space-y-1">
+              <h4 className="font-bold text-slate-900 text-xs">Zoho Books OAuth 2.0 Connector</h4>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Connects to Zoho Books India/Global REST API to sync outward invoices, vendor bills, contacts, and tax rates.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Zoho Organization ID</label>
+              <input type="text" value={zohoOrgId} onChange={e => setZohoOrgId(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Data Center</label>
+              <select value={zohoDc} onChange={e => setZohoDc(e.target.value as any)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold">
+                <option value="in">India (.zoho.in)</option>
+                <option value="com">US & Global (.zoho.com)</option>
+                <option value="eu">Europe (.zoho.eu)</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Client ID</label>
+              <input type="text" value={zohoClientId} onChange={e => setZohoClientId(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Client Secret</label>
+              <input type="password" value={zohoClientSecret} onChange={e => setZohoClientSecret(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono" />
+            </div>
+          </div>
+
+          <div className="pt-2 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={handleTestZohoConnection}
+              disabled={zohoTesting}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
+            >
+              {zohoTesting ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+              {zohoTesting ? 'Authenticating...' : 'Test OAuth 2.0 Connection'}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleOpenOneClickImport('zoho')}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer"
+            >
+              <Zap size={14} />
+              1-Click Import Ledgers
+            </button>
+          </div>
+
+          {zohoTestResult && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1 text-xs">
+              <span className="font-extrabold text-emerald-900 flex items-center gap-1.5"><Check size={14} /> Connected to {zohoTestResult.organizationName}</span>
+              <p className="text-[11px] text-emerald-700 font-medium">Currency: {zohoTestResult.currency} • Latency: {zohoTestResult.latencyMs}ms</p>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (activeIntegration.id === 'sap') {
+      return (
+        <div className="space-y-4 pt-2 text-xs">
+          <div className="p-4 bg-slate-800 text-white rounded-xl flex items-start gap-3">
+            <div className="p-2 bg-slate-700 text-slate-200 rounded-lg shrink-0">
+              <Server size={18} />
+            </div>
+            <div className="space-y-1">
+              <h4 className="font-bold text-white text-xs">SAP S/4HANA / ECC OData & Netweaver Gateway</h4>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                Connects to SAP Gateway (API_BILLING_DOCUMENT_SRV & API_SUPPLIERINVOICE_PROCESS_SRV) with RFC & OData V2/V4.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-2 space-y-1.5">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">SAP Host URL</label>
+              <input type="text" value={sapHost} onChange={e => setSapHost(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Client No.</label>
+              <input type="text" value={sapClientNo} onChange={e => setSapClientNo(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">System ID (SID)</label>
+              <input type="text" value={sapSystemId} onChange={e => setSapSystemId(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono" />
+            </div>
+            <div className="sm:col-span-2 space-y-1.5">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">API Key / Token</label>
+              <input type="password" value={sapApiKey} onChange={e => setSapApiKey(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono" />
+            </div>
+          </div>
+
+          <div className="pt-2 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={handleTestSapConnection}
+              disabled={sapTesting}
+              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
+            >
+              {sapTesting ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+              {sapTesting ? 'Validating OData Catalog...' : 'Test SAP Connection'}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleOpenOneClickImport('sap')}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer"
+            >
+              <Zap size={14} />
+              1-Click Import Ledgers
+            </button>
+          </div>
+
+          {sapTestResult && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1 text-xs">
+              <span className="font-extrabold text-emerald-900 flex items-center gap-1.5"><Check size={14} /> SAP Release: {sapTestResult.systemRelease}</span>
+              <p className="text-[11px] text-emerald-700 font-medium">Company Codes: {sapTestResult.companyCodes.join(', ')} • Latency: {sapTestResult.latencyMs}ms</p>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (activeIntegration.id === 'oracle') {
+      return (
+        <div className="space-y-4 pt-2 text-xs">
+          <div className="p-4 bg-red-50/80 border border-red-200 rounded-xl flex items-start gap-3">
+            <div className="p-2 bg-red-100 text-red-700 rounded-lg shrink-0">
+              <Server size={18} />
+            </div>
+            <div className="space-y-1">
+              <h4 className="font-bold text-slate-900 text-xs">Oracle NetSuite SuiteTalk & SuiteTax API</h4>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Token-Based Authentication (TBA HMAC-SHA256) to access Sales Invoices, Vendor Bills, and SuiteTax GST engines.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Account ID</label>
+              <input type="text" value={oracleAccountId} onChange={e => setOracleAccountId(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Consumer Key</label>
+              <input type="text" value={oracleConsumerKey} onChange={e => setOracleConsumerKey(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Consumer Secret</label>
+              <input type="password" value={oracleConsumerSecret} onChange={e => setOracleConsumerSecret(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Token ID</label>
+              <input type="text" value={oracleTokenId} onChange={e => setOracleTokenId(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Token Secret</label>
+              <input type="password" value={oracleTokenSecret} onChange={e => setOracleTokenSecret(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono" />
+            </div>
+          </div>
+
+          <div className="pt-2 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={handleTestOracleConnection}
+              disabled={oracleTesting}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
+            >
+              {oracleTesting ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+              {oracleTesting ? 'Verifying TBA Signatures...' : 'Test NetSuite SuiteTalk Connection'}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleOpenOneClickImport('oracle')}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer"
+            >
+              <Zap size={14} />
+              1-Click Import Ledgers
+            </button>
+          </div>
+
+          {oracleTestResult && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1 text-xs">
+              <span className="font-extrabold text-emerald-900 flex items-center gap-1.5"><Check size={14} /> Subsidiary: {oracleTestResult.subsidiary}</span>
+              <p className="text-[11px] text-emerald-700 font-medium">SuiteTax Engine: Enabled • Latency: {oracleTestResult.latencyMs}ms</p>
+            </div>
+          )}
+        </div>
+      );
+    }
 
     
     
@@ -2111,6 +2432,13 @@ const Integrations: React.FC = () => {
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input type="text" placeholder="Search apps..." className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 w-64 shadow-sm" />
           </div>
+          <button 
+            onClick={() => handleOpenOneClickImport()} 
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-sm font-bold shadow-md transition-all cursor-pointer"
+          >
+            <Zap size={16} />
+            1-Click ERP Import
+          </button>
           <button className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-bold shadow-sm transition-colors">
             <Plus size={16} /> Add App
           </button>
@@ -2219,16 +2547,27 @@ const Integrations: React.FC = () => {
                    <h3 className="font-bold text-slate-900 text-base">{integration.name}</h3>
                    <p className="text-xs text-slate-500 mt-1.5 leading-relaxed line-clamp-2">{integration.description}</p>
                    
-                   <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between">
+                   <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
                      <div className="text-[10px] font-semibold text-slate-400">
                         {integration.status === 'CONNECTED' ? `Last sync: ${integration.lastSync}` : 'Never synced'}
                      </div>
-                     <button 
-                       onClick={() => openConnectModal(integration.id, integration.status === 'CONNECTED' ? 'SYNC' : 'CONNECTION')}
-                       className={`text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-colors ${integration.status === 'CONNECTED' ? 'text-slate-700 hover:bg-slate-100' : 'text-blue-700 bg-blue-50 hover:bg-blue-100'}`}
-                     >
-                       {integration.status === 'CONNECTED' ? 'Configure' : 'Connect'}
-                     </button>
+                     <div className="flex items-center gap-1.5">
+                       <button 
+                         type="button"
+                         onClick={() => handleOpenOneClickImport(integration.id)}
+                         className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors flex items-center gap-1 cursor-pointer"
+                         title="1-Click import sales & purchase ledgers into GST engine"
+                       >
+                         <Zap size={12} />
+                         Import
+                       </button>
+                       <button 
+                         onClick={() => openConnectModal(integration.id, integration.status === 'CONNECTED' ? 'SYNC' : 'CONNECTION')}
+                         className={`text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${integration.status === 'CONNECTED' ? 'text-slate-700 hover:bg-slate-100' : 'text-blue-700 bg-blue-50 hover:bg-blue-100'}`}
+                       >
+                         {integration.status === 'CONNECTED' ? 'Configure' : 'Connect'}
+                       </button>
+                     </div>
                    </div>
                  </div>
               ))}
@@ -2429,6 +2768,13 @@ const Integrations: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* One-Click ERP Ledger Import Modal */}
+      <OneClickErpImportModal 
+        isOpen={isOneClickModalOpen}
+        onClose={() => setIsOneClickModalOpen(false)}
+        defaultErpId={selectedErpForImport || 'tally'}
+      />
     </div>
   );
 };

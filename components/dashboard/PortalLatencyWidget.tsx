@@ -84,7 +84,7 @@ export const PortalLatencyWidget: React.FC = () => {
 
   if (isLoading || !healthData) {
     return (
-      <div className="bg-white border border-slate-200/80 rounded-3xl p-8 shadow-sm flex items-center justify-center h-80 text-slate-400">
+      <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-xs flex items-center justify-center h-80 text-slate-400">
         <RefreshCw className="animate-spin mr-2" size={20} /> Loading Real-Time GST Portal Metrics...
       </div>
     );
@@ -102,7 +102,7 @@ export const PortalLatencyWidget: React.FC = () => {
   ];
 
   return (
-    <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-sm hover:shadow-md transition-shadow space-y-6">
+    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-6">
       {/* Widget Header */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-slate-100 pb-5">
         <div>

@@ -4,12 +4,12 @@ import {
   Plus, Edit2, Trash2, CheckCircle2, AlertCircle, Save, Key, Lock, 
   ExternalLink, Layers, RefreshCw, Check, Sparkles, Building, Briefcase, 
   Clock, ShieldAlert, Award, FileCheck, DollarSign, Settings, Users,
-  Activity, Eye, Radio, Zap, ChevronRight, X, ShieldCheck
+  Activity, Eye, Radio, Zap, ChevronRight, X, Database
 } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import { useDispatch } from 'react-redux';
 import { setGstinsForTenant, setBranchesForTenant } from '../../store/store';
-import UserAccessManagement from './UserAccessManagement';
+import { NeonMultiTenantDatabaseCenter } from './NeonMultiTenantDatabaseCenter';
 import { 
   CompanyRegistrationProfile, 
   GstinRegistrationItem, 
@@ -61,7 +61,7 @@ export const OrganizationModule: React.FC<OrganizationModuleProps> = ({
 }) => {
   const dispatch = useDispatch();
   const [activeSubTab, setActiveSubTab] = useState<
-    'COMPANY' | 'GSTIN' | 'BRANCHES' | 'FY_SETTINGS' | 'STATE_CONFIG' | 'BUSINESS_PROFILE' | 'SIGNATORIES' | 'USERS'
+    'COMPANY' | 'GSTIN' | 'BRANCHES' | 'FY_SETTINGS' | 'STATE_CONFIG' | 'BUSINESS_PROFILE' | 'SIGNATORIES' | 'NEON_DATASETS'
   >('COMPANY');
 
   const [toastMsg, setToastMsg] = useState<{ text: string; type?: 'info' | 'success' | 'remote' } | null>(null);
@@ -635,7 +635,7 @@ export const OrganizationModule: React.FC<OrganizationModuleProps> = ({
           { id: 'STATE_CONFIG', label: 'State Rules', icon: Settings, color: 'text-purple-600' },
           { id: 'BUSINESS_PROFILE', label: 'Business Profile', icon: Briefcase, color: 'text-rose-600' },
           { id: 'SIGNATORIES', label: 'Signatories & DSC', icon: UserCheck, color: 'text-teal-600', count: signatories.length },
-          { id: 'USERS', label: 'Users & Access (RBAC)', icon: ShieldCheck, color: 'text-blue-600' }
+          { id: 'NEON_DATASETS', label: 'Postgres Neon Multi-Tenant', icon: Database, color: 'text-blue-600' }
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeSubTab === tab.id;
@@ -1645,12 +1645,14 @@ export const OrganizationModule: React.FC<OrganizationModuleProps> = ({
         </div>
       )}
 
-      {/* 8. USERS & ACCESS MANAGEMENT (RBAC) */}
-      {activeSubTab === 'USERS' && (
-        <UserAccessManagement 
-          currentTenantId={currentTenantId} 
-          onShowToast={(msg) => triggerToast(msg, 'success')} 
-        />
+      {/* SUB-MODULE 8: POSTGRES NEON MULTI-TENANT DATASETS */}
+      {activeSubTab === 'NEON_DATASETS' && (
+        <div className="animate-in fade-in">
+          <NeonMultiTenantDatabaseCenter
+            currentTenantId={currentTenantId}
+            onShowToast={(msg) => triggerToast(msg, 'success')}
+          />
+        </div>
       )}
 
       {/* REAL-TIME AUDIT LOG SLIDE-OVER DRAWER */}

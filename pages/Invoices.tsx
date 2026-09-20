@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, setSelectedGstin, setSelectedBranch } from '../store/store';
 import { fetchInvoices, createInvoice, generateEInvoice, bulkImportInvoices, bulkReconcileInvoices, generateEWayBill, fetchScheduledReminders, sendInvoiceReminder, scanInvoice, fetchExchangeRates, fetchImportHistory, createInvoiceVersion, restoreInvoiceVersion, autoCategorizeInvoice, updateInvoice, runAutomatedItcTagging } from '../services/api';
 import { 
   Filter, Download, Plus, X, Loader2, Calendar, FileText, User, 
-  Building, CreditCard, Percent, ChevronLeft, ChevronRight, 
+  Building, CreditCard, Percent, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   ArrowUpDown, ArrowUp, ArrowDown, Upload, FileSpreadsheet,
   QrCode, Printer, Receipt, Tag, AlertCircle, ScanLine, Copy, Check, CheckCircle2, RefreshCw, Truck, ShieldAlert, MoreHorizontal, Search, Layers, Maximize2, AlertTriangle, ShieldCheck, Trash2, PlusCircle, Send, Bell, Camera, Clock,
   RotateCw, ZoomIn, ZoomOut, Palette, Share2, ExternalLink, History, Zap, Sliders, Building2, Globe, Repeat, Database, Save, CloudOff, MessageSquare
@@ -57,8 +58,8 @@ const Invoices: React.FC = () => {
   const activeGstinObj = currentTenantGstins.find(g => g.gstin === selectedGstin);
   const activeBranchObj = currentTenantBranches.find(b => b.id === selectedBranchId);
   
-  // RBAC: Only Admin and Accountants can create/edit invoices
-  const canEdit = user?.role === UserRole.ADMIN || user?.role === UserRole.ACCOUNTANT;
+  // RBAC: Super Admin, Admin, Finance Manager, and Accountants can create/edit invoices. Auditors and Viewers are read-only.
+  const canEdit = user?.role === UserRole.SUPER_ADMIN || user?.role === UserRole.ADMIN || user?.role === UserRole.FINANCE_MANAGER || user?.role === UserRole.ACCOUNTANT;
 
   const { data: invoices, isLoading, refetch } = useQuery({ 
       queryKey: ['invoices', tenantId, selectedGstin, selectedBranchId], 
@@ -138,6 +139,60 @@ const Invoices: React.FC = () => {
   const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
   const [isDataQualityOverlayOpen, setIsDataQualityOverlayOpen] = useState(false);
   const [scanSuccessToast, setScanSuccessToast] = useState<string | null>(null);
+
+  const location = useLocation();
+
+  // Detect and apply draft calculation passed from Quick Tax Calculator or Rate Calculator Page
+  useEffect(() => {
+    const navState = location.state as { openDraft?: boolean; prefilledDraftItem?: any } | null;
+    let draftItem = navState?.prefilledDraftItem;
+
+    if (!draftItem) {
+      try {
+        const stored = sessionStorage.getItem('taxflow_quick_tax_draft_item');
+        if (stored) {
+          draftItem = JSON.parse(stored);
+          sessionStorage.removeItem('taxflow_quick_tax_draft_item');
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    if (navState?.openDraft || draftItem) {
+      setIsCreateModalOpen(true);
+      if (draftItem) {
+        const qty = draftItem.quantity || 1;
+        const rateVal = draftItem.rate || draftItem.taxableValue || 0;
+        const taxable = draftItem.taxableValue || (qty * rateVal);
+        const tRate = typeof draftItem.taxRate === 'number' ? draftItem.taxRate : 18;
+        const tAmount = draftItem.taxAmount || (taxable * tRate) / 100;
+
+        setLineItems([{
+          id: `draft-${Date.now()}`,
+          description: draftItem.description || 'Estimated Taxable Item',
+          hsnSac: draftItem.hsnSac || '8471',
+          quantity: qty,
+          unit: draftItem.unit || 'PCS',
+          rate: rateVal,
+          taxRate: tRate,
+          taxableValue: taxable,
+          taxAmount: tAmount,
+        }]);
+
+        if (draftItem.partyName) setPartyNameInput(draftItem.partyName);
+        if (draftItem.isInterstate) {
+          // If interstate, we can prefill party or leave as standard B2B
+          setCreateFormType('B2B');
+        }
+
+        setAutoTagToast(`Tax Calculator item (${draftItem.hsnSac ? `HSN ${draftItem.hsnSac}` : ''} ${tRate}% - ₹${taxable.toLocaleString('en-IN')}) applied to draft invoice.`);
+        setTimeout(() => setAutoTagToast(null), 6000);
+      }
+      // Clear navigation state
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   const handleCameraInvoiceExtracted = async (extractedData: ExtractedInvoiceData, createDirectly?: boolean) => {
     // Populate form inputs with extracted camera scanner data
@@ -409,7 +464,8 @@ const Invoices: React.FC = () => {
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 8;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [jumpPageInput, setJumpPageInput] = useState('');
 
   // Multi-currency handling
   const [selectedCurrency, setSelectedCurrency] = useState('INR');
@@ -715,13 +771,18 @@ const Invoices: React.FC = () => {
 
   useEffect(() => {
       setSelectedIds(new Set());
-      setCurrentPage(1);
   }, [activeCategory, filterStatus, searchQuery]);
 
   useEffect(() => {
       if (isCreateModalOpen) {
           setCreateFormType('B2B');
-          setLineItems([{ id: '1', description: '', hsnSac: '', quantity: 1, unit: 'PCS', rate: 0, taxRate: 18, taxableValue: 0, taxAmount: 0 }]);
+          setLineItems(prev => {
+            // Keep if already populated from draft or camera
+            if (prev.length > 0 && (prev[0].taxableValue > 0 || (prev[0].hsnSac && prev[0].hsnSac !== ''))) {
+              return prev;
+            }
+            return [{ id: '1', description: '', hsnSac: '', quantity: 1, unit: 'PCS', rate: 0, taxRate: 18, taxableValue: 0, taxAmount: 0 }];
+          });
           
           // Auto Generate Invoice Number
           const prefix = activeCategory === 'PURCHASE' ? 'PUR' : (activeCategory === 'CN_DN' ? 'CN' : 'INV');
@@ -1084,8 +1145,68 @@ const Invoices: React.FC = () => {
   }, [filteredInvoices, sortConfigs]);
   
   const totalItems = sortedInvoices.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const currentInvoices = sortedInvoices.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+  const currentInvoices = sortedInvoices.slice((safeCurrentPage - 1) * itemsPerPage, safeCurrentPage * itemsPerPage);
+
+  // Auto-reset page when filters change or itemsPerPage changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    activeCategory,
+    filterStatus,
+    filterDocType,
+    filterCompliance,
+    filterVendorBillOnly,
+    filterItcEligibility,
+    filterExpenseCategory,
+    approvalStageFilter,
+    searchQuery,
+    startDate,
+    endDate,
+    minAmount,
+    maxAmount,
+    viewArchived,
+    itemsPerPage,
+    selectedGstin,
+    selectedBranchId,
+  ]);
+
+  const paginationRange = useMemo(() => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    const delta = 1;
+    const range: (number | string)[] = [];
+    const left = Math.max(2, safeCurrentPage - delta);
+    const right = Math.min(totalPages - 1, safeCurrentPage + delta);
+
+    range.push(1);
+
+    if (left > 2) {
+      range.push('...');
+    }
+
+    for (let i = left; i <= right; i++) {
+      range.push(i);
+    }
+
+    if (right < totalPages - 1) {
+      range.push('...');
+    }
+
+    range.push(totalPages);
+    return range;
+  }, [currentPage, totalPages]);
+
+  const handleJumpToPage = (e: React.FormEvent) => {
+    e.preventDefault();
+    const p = parseInt(jumpPageInput, 10);
+    if (!isNaN(p) && p >= 1 && p <= totalPages) {
+      setCurrentPage(p);
+      setJumpPageInput('');
+    }
+  };
 
   const eligibleForEInvoice = useMemo(() => {
       if(activeCategory !== 'SALES') return [];
@@ -1290,225 +1411,470 @@ const Invoices: React.FC = () => {
     );
   };
 
+  const registerTotals = useMemo(() => {
+    const list = filteredInvoices || [];
+    const count = list.length;
+    const taxableValue = list.reduce((sum, inv) => sum + (inv.amount || 0), 0);
+    const taxValue = list.reduce((sum, inv) => sum + (inv.taxAmount || 0), 0);
+    const grossValue = taxableValue + taxValue;
+    return { count, taxableValue, taxValue, grossValue };
+  }, [filteredInvoices]);
+
+  const handlePrintDocument = (targetType: 'REGISTER' | 'INVOICE') => {
+    if (targetType === 'INVOICE' && selectedInvoice) {
+      const invoiceEl = document.getElementById('printable-invoice-document');
+      if (invoiceEl) {
+        try {
+          let printFrame = document.getElementById('taxflow-print-frame') as HTMLIFrameElement;
+          if (printFrame) {
+            printFrame.remove();
+          }
+          printFrame = document.createElement('iframe');
+          printFrame.id = 'taxflow-print-frame';
+          printFrame.style.position = 'fixed';
+          printFrame.style.right = '0';
+          printFrame.style.bottom = '0';
+          printFrame.style.width = '0';
+          printFrame.style.height = '0';
+          printFrame.style.border = '0';
+          document.body.appendChild(printFrame);
+
+          const frameDoc = printFrame.contentWindow?.document || printFrame.contentDocument;
+          if (frameDoc) {
+            frameDoc.open();
+            frameDoc.write(`
+              <!DOCTYPE html>
+              <html>
+                <head>
+                  <meta charset="utf-8">
+                  <title>Tax Invoice - ${selectedInvoice.invoiceNumber}</title>
+                  <script src="https://cdn.tailwindcss.com"></script>
+                  <style>
+                    @page { size: A4 portrait; margin: 10mm; }
+                    body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; background: #ffffff !important; color: #0f172a !important; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 16px; }
+                    .no-print { display: none !important; }
+                    table { width: 100%; border-collapse: collapse; }
+                  </style>
+                </head>
+                <body class="p-6 bg-white">
+                  <div class="max-w-4xl mx-auto bg-white">
+                    ${invoiceEl.innerHTML}
+                  </div>
+                  <script>
+                    setTimeout(function() {
+                      window.focus();
+                      window.print();
+                    }, 400);
+                  </script>
+                </body>
+              </html>
+            `);
+            frameDoc.close();
+            return;
+          }
+        } catch (e) {
+          console.warn('Iframe print error, falling back to window.print', e);
+        }
+      }
+      window.print();
+      return;
+    }
+
+    // Print register report
+    const registerEl = document.getElementById('printable-invoices-register');
+    if (registerEl) {
+      try {
+        let printFrame = document.getElementById('taxflow-print-frame') as HTMLIFrameElement;
+        if (printFrame) {
+          printFrame.remove();
+        }
+        printFrame = document.createElement('iframe');
+        printFrame.id = 'taxflow-print-frame';
+        printFrame.style.position = 'fixed';
+        printFrame.style.right = '0';
+        printFrame.style.bottom = '0';
+        printFrame.style.width = '0';
+        printFrame.style.height = '0';
+        printFrame.style.border = '0';
+        document.body.appendChild(printFrame);
+
+        const frameDoc = printFrame.contentWindow?.document || printFrame.contentDocument;
+        if (frameDoc) {
+          frameDoc.open();
+          frameDoc.write(`
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <meta charset="utf-8">
+                <title>GST Invoices Register - ${activeCategory}</title>
+                <script src="https://cdn.tailwindcss.com"></script>
+                <style>
+                  @page { size: A4 landscape; margin: 8mm; }
+                  body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; background: #ffffff !important; color: #0f172a !important; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 16px; }
+                  .no-print { display: none !important; }
+                  table { width: 100%; border-collapse: collapse; }
+                  th, td { border: 1px solid #cbd5e1; }
+                </style>
+              </head>
+              <body class="p-6 bg-white">
+                <div class="w-full">
+                  ${registerEl.innerHTML}
+                </div>
+                <script>
+                  setTimeout(function() {
+                    window.focus();
+                    window.print();
+                  }, 400);
+                </script>
+              </body>
+            </html>
+          `);
+          frameDoc.close();
+          return;
+        }
+      } catch (e) {
+        console.warn('Iframe print register error, falling back to window.print', e);
+      }
+    }
+    window.print();
+  };
+
   if (isLoading) return <div className="flex h-96 items-center justify-center text-slate-500"><Loader2 className="animate-spin mr-2"/> Loading data...</div>;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-      {/* Header & Controls */}
-      <div className="flex flex-col xl:flex-row justify-between xl:items-center gap-6 no-print">
+      {/* 1. Header Bar: Title + Primary Action CTAs */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs no-print">
         <div>
-            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+          <div className="flex items-center gap-3">
+            <div className={`p-2.5 rounded-xl border ${activeCategory === 'PURCHASE' ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>
+              <Receipt size={22} />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
                 {activeCategory === 'SALES' ? 'Sales Invoices' : activeCategory === 'PURCHASE' ? 'Purchase Invoices' : 'Credit & Debit Notes'}
-            </h2>
-            <p className="text-sm text-slate-500 mt-1">Manage, track and file your {activeCategory.toLowerCase()} documents.</p>
-            {autoTagToast && (
-              <div className="mt-2 p-3 bg-teal-50 border border-teal-200 rounded-xl text-xs font-bold text-teal-900 flex items-center justify-between gap-2 shadow-xs animate-in fade-in">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck size={16} className="text-teal-600 shrink-0" />
-                  <span>{autoTagToast}</span>
-                </div>
-                <button onClick={() => setAutoTagToast(null)} className="text-teal-600 hover:text-teal-900 p-1">
-                  <X size={14} />
-                </button>
+              </h2>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">
+                Manage, track, validate and file your {activeCategory.toLowerCase()} tax documents
+              </p>
+            </div>
+          </div>
+          {autoTagToast && (
+            <div className="mt-3 p-2.5 bg-teal-50 border border-teal-200 rounded-xl text-xs font-bold text-teal-900 flex items-center justify-between gap-2 shadow-xs animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <ShieldCheck size={16} className="text-teal-600 shrink-0" />
+                <span>{autoTagToast}</span>
               </div>
-            )}
+              <button onClick={() => setAutoTagToast(null)} className="text-teal-600 hover:text-teal-900 p-1">
+                <X size={14} />
+              </button>
+            </div>
+          )}
         </div>
-        
+
         {canEdit && (
-          <div className="flex flex-wrap items-center gap-3">
-             {/* Bulk Actions */}
-             {eligibleForEInvoice.length > 0 && (
-                 <button onClick={handleBulkGenerate} disabled={isBulkGenerating} className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 shadow-md transition-all animate-in fade-in slide-in-from-right-2">
-                     {isBulkGenerating ? <Loader2 size={16} className="animate-spin"/> : <Layers size={16}/>} Generate E-Invoice ({eligibleForEInvoice.length})
-                 </button>
-             )}
-             {eligibleForEWayBill.length > 0 && (
-                 <button onClick={handleBulkEWayBill} disabled={isBulkEwbGenerating} className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 shadow-md transition-all animate-in fade-in slide-in-from-right-2">
-                     {isBulkEwbGenerating ? <Loader2 size={16} className="animate-spin"/> : <Truck size={16}/>} Generate E-Way Bill ({eligibleForEWayBill.length})
-                 </button>
-             )}
-
-             <button 
-                 onClick={() => setIsDataQualityOverlayOpen(true)}
-                 className="flex items-center justify-center gap-2 px-4 py-2 border rounded-lg text-sm font-semibold transition-all shadow-sm bg-white border-slate-200 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
-              >
-                <ShieldCheck size={16} className="text-emerald-600"/> Data Quality
-              </button>
-             <button 
-                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)} 
-                className={`flex items-center justify-center gap-2 px-4 py-2 border rounded-lg text-sm font-semibold transition-all shadow-sm ${showAdvancedFilters ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}
-              >
-                <Filter size={16} className={showAdvancedFilters ? 'text-indigo-600' : 'text-slate-500'}/> Filters
-                {(startDate || endDate || minAmount || maxAmount) && (
-                  <span className="w-1.5 h-1.5 bg-indigo-600 rounded-full"></span>
-                )}
-              </button>
-
-             <div className="relative group">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors"/>
-                <input 
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search invoice number, party..." 
-                    className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 w-full sm:w-64 transition-all shadow-sm"
-                />
-             </div>
-
-             {/* Billing Period Date-Range Picker */}
-             <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg p-1 shadow-sm h-10 select-none">
-                <div className="flex items-center gap-1 px-1.5 text-slate-500 shrink-0">
-                  <Calendar size={14} className="text-indigo-500" />
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Period:</span>
-                </div>
-                <input 
-                  type="date" 
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="bg-transparent text-xs text-slate-700 outline-none border-none py-0.5 px-1 focus:ring-1 focus:ring-blue-500 rounded max-w-[115px]"
-                  title="Billing Period Start Date"
-                />
-                <span className="text-slate-300 text-[10px] font-bold shrink-0">to</span>
-                <input 
-                  type="date" 
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="bg-transparent text-xs text-slate-700 outline-none border-none py-0.5 px-1 focus:ring-1 focus:ring-blue-500 rounded max-w-[115px]"
-                  title="Billing Period End Date"
-                />
-                {(startDate || endDate) && (
-                  <button 
-                    onClick={() => { setStartDate(''); setEndDate(''); }}
-                    className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors shrink-0"
-                    title="Clear date filter"
-                  >
-                    <X size={12} />
-                  </button>
-                )}
-             </div>
-
-            <button onClick={() => setIsAutoCatRulesOpen(true)} className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm">
-              <Zap size={16} className="text-indigo-500"/> Rules
-            </button>
-            <button onClick={() => setIsCurrencyConverterOpen(true)} className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm">
-              <Globe size={16} className="text-blue-500"/> FX
-            </button>
-            
-            {activeCategory === 'PURCHASE' && (
-              <button 
-                onClick={handleRunAutoItcTagging} 
-                disabled={isAutoTaggingRunning}
-                className="flex items-center justify-center gap-2 px-4 py-2 bg-teal-50 border border-teal-200 hover:bg-teal-100 rounded-lg text-sm font-semibold text-teal-800 transition-all shadow-sm active:scale-95 disabled:opacity-50"
-                title="Execute statutory rules engine to classify ITC Eligibility across all purchase invoices"
-              >
-                {isAutoTaggingRunning ? <Loader2 size={16} className="animate-spin text-teal-600" /> : <ShieldCheck size={16} className="text-teal-600" />}
-                Auto-Tag ITC
-              </button>
-            )}
-            <button onClick={() => setIsExportModalOpen(true)} className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm">
-              <Download size={16} className="text-blue-600"/> Export
-            </button>
-            <button 
-              onClick={() => window.print()} 
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm"
-            >
-              <Printer size={16} className="text-slate-500"/> Print
-            </button>
-            <button 
-               onClick={() => setIsVendorUploadModalOpen(true)}
-               className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-lg text-sm font-semibold text-indigo-700 hover:bg-indigo-100 transition-all shadow-sm"
-            >
-              <Share2 size={16} /> Vendor Portal
-            </button>
-            <button 
-               onClick={() => setIsCameraScannerOpen(true)}
-               className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 rounded-lg text-sm font-semibold text-indigo-700 transition-all shadow-sm active:scale-95"
-               title="Scan physical invoice using device camera"
-            >
-              <Camera size={16} /> Scan Invoice
-            </button>
-            <button 
-               onClick={() => {
-                 setActiveSubTab('RECURRING');
-                 setRecurringAutoOpen(true);
-               }}
-               className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 rounded-lg text-sm font-semibold text-emerald-700 transition-all shadow-sm active:scale-95"
-               title="Schedule automated repeating invoices"
-            >
-              <Clock size={16} /> Schedule Recurring
-            </button>
+          <div className="flex flex-wrap items-center gap-2.5">
             <button 
               onClick={() => setIsImportModalOpen(true)} 
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-[#FBBF24] hover:bg-[#F59E0B] text-[#111827] rounded-lg text-sm font-bold shadow-sm transition-all active:scale-95"
+              className="h-10 px-4 bg-amber-400 hover:bg-amber-500 text-slate-900 rounded-xl text-xs font-bold shadow-xs transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
               title="Bulk import batch transaction data via CSV"
             >
-              <FileSpreadsheet size={16} /> Bulk Import CSV Wizard
+              <FileSpreadsheet size={15} />
+              <span>Bulk Import CSV</span>
             </button>
-            <button onClick={() => setIsCreateModalOpen(true)} className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all active:scale-95">
-              <Plus size={18} /> New {activeCategory === 'CN_DN' ? 'Note' : 'Invoice'}
+
+            <button 
+              onClick={() => {
+                setActiveSubTab('RECURRING');
+                setRecurringAutoOpen(true);
+              }}
+              className="h-10 px-4 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/80 rounded-xl text-xs font-bold transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
+              title="Schedule automated repeating invoices"
+            >
+              <Clock size={15} />
+              <span>Recurring</span>
+            </button>
+
+            <button 
+              onClick={() => setIsCreateModalOpen(true)} 
+              className="h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm shadow-blue-500/20 transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
+            >
+              <Plus size={16} />
+              <span>New {activeCategory === 'CN_DN' ? 'Note' : 'Invoice'}</span>
             </button>
           </div>
         )}
       </div>
 
-      {/* Navigation & Filters */}
-      <div className="flex flex-col sm:flex-row justify-between items-end sm:items-center gap-4 border-b border-slate-200 pb-1 no-print">
-        <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
-          {(['SALES', 'PURCHASE', 'CN_DN'] as const).map(cat => (
-              <button key={cat} onClick={() => { setActiveCategory(cat); setActiveSubTab('LIST'); }} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeCategory === cat && activeSubTab === 'LIST' ? 'bg-white text-slate-900 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}>
-                  {cat === 'CN_DN' ? 'Credit/Debit Notes' : cat.charAt(0) + cat.slice(1).toLowerCase()}
+      {/* 2. Navigation Tabs & Active Scope Bar */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs no-print">
+        {/* Category & Sub-view Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0 scrollbar-none">
+          <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl shrink-0">
+            {(['SALES', 'PURCHASE', 'CN_DN'] as const).map(cat => (
+              <button 
+                key={cat} 
+                onClick={() => { setActiveCategory(cat); setActiveSubTab('LIST'); }} 
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  activeCategory === cat && activeSubTab === 'LIST' 
+                    ? 'bg-white text-slate-900 shadow-xs' 
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {cat === 'CN_DN' ? 'Credit/Debit Notes' : cat === 'SALES' ? 'Sales Invoices' : 'Purchase Invoices'}
               </button>
-          ))}
-          <div className="w-px h-4 bg-slate-300 mx-1 self-center"></div>
-          <button onClick={() => setActiveSubTab('REMINDERS')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${activeSubTab === 'REMINDERS' ? 'bg-white text-purple-600 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}>
-            <Bell size={16}/> Reminders
-          </button>
-          <div className="w-px h-4 bg-slate-300 mx-1 self-center"></div>
-          <button onClick={() => setActiveSubTab('IMPORT_HISTORY')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${activeSubTab === 'IMPORT_HISTORY' ? 'bg-white text-blue-600 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}>
-            <History size={16}/> Import History
-          </button>
-          <div className="w-px h-4 bg-slate-300 mx-1 self-center"></div>
-          <button onClick={() => setActiveSubTab('RECURRING')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${activeSubTab === 'RECURRING' ? 'bg-white text-emerald-600 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}>
-            <Repeat size={16}/> Recurring
-          </button>
-          <div className="w-px h-4 bg-slate-300 mx-1 self-center"></div>
-          <button onClick={() => setActiveSubTab('OFFLINE_DRAFTS')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${activeSubTab === 'OFFLINE_DRAFTS' ? 'bg-white text-orange-600 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}>
-            <Database size={16}/> Local Drafts {offlineDrafts?.length ? `(${offlineDrafts.length})` : ''}
-          </button>
-          <div className="w-px h-4 bg-slate-300 mx-1 self-center"></div>
-          <button 
-            onClick={() => { setViewArchived(!viewArchived); setActiveSubTab('LIST'); }} 
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${viewArchived ? 'bg-amber-100 text-amber-700 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
-          >
-            <Layers size={16}/> {viewArchived ? 'Archived Records' : 'Archives'}
-          </button>
+            ))}
+          </div>
+
+          <div className="h-5 w-px bg-slate-200 mx-1 shrink-0" />
+
+          <div className="flex items-center gap-1 shrink-0">
+            <button 
+              onClick={() => setActiveSubTab('REMINDERS')} 
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeSubTab === 'REMINDERS' 
+                  ? 'bg-purple-50 text-purple-700 border border-purple-200' 
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <Bell size={13} /> Reminders
+            </button>
+
+            <button 
+              onClick={() => setActiveSubTab('IMPORT_HISTORY')} 
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeSubTab === 'IMPORT_HISTORY' 
+                  ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <History size={13} /> Import History
+            </button>
+
+            <button 
+              onClick={() => setActiveSubTab('RECURRING')} 
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeSubTab === 'RECURRING' 
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <Repeat size={13} /> Recurring
+            </button>
+
+            <button 
+              onClick={() => setActiveSubTab('OFFLINE_DRAFTS')} 
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeSubTab === 'OFFLINE_DRAFTS' 
+                  ? 'bg-amber-50 text-amber-700 border border-amber-200' 
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <Database size={13} /> Local Drafts {offlineDrafts?.length ? `(${offlineDrafts.length})` : ''}
+            </button>
+
+            <button 
+              onClick={() => { setViewArchived(!viewArchived); setActiveSubTab('LIST'); }} 
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                viewArchived 
+                  ? 'bg-amber-100 text-amber-800 border border-amber-300' 
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <Layers size={13} /> {viewArchived ? 'Archived Records' : 'Archives'}
+            </button>
+          </div>
         </div>
 
-        {/* GSTIN / Branch Active Scope Pill */}
-        <div className="flex items-center gap-2 text-xs font-semibold">
-          <span className="text-slate-400">GST Registration Scope:</span>
+        {/* GST Registration Scope Badge */}
+        <div className="flex items-center gap-2 text-xs shrink-0 self-end lg:self-center">
+          <span className="text-slate-400 font-semibold text-[11px]">GST Scope:</span>
           {selectedGstin === 'ALL' && selectedBranchId === 'ALL' ? (
-            <span className="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200 flex items-center gap-1.5 font-bold">
-              <Layers size={13} className="text-slate-500" /> All Registrations (Consolidated)
+            <span className="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200 flex items-center gap-1.5 font-bold text-xs">
+              <Layers size={12} className="text-slate-500" /> All Registrations
             </span>
           ) : (
             <div className="flex items-center gap-1.5">
-              <span className="bg-indigo-50 text-indigo-800 border border-indigo-200 px-2.5 py-1 rounded-lg flex items-center gap-1.5 font-bold shadow-xs">
-                <Building2 size={13} className="text-indigo-600" />
+              <span className="bg-indigo-50 text-indigo-800 border border-indigo-200 px-2.5 py-1 rounded-lg flex items-center gap-1.5 font-bold text-xs">
+                <Building2 size={12} className="text-indigo-600" />
                 {activeGstinObj?.stateName || 'State'} ({selectedGstin})
-                {activeBranchObj && <span className="text-indigo-600 font-sans"> • {activeBranchObj.name}</span>}
+                {activeBranchObj && <span className="text-indigo-600"> • {activeBranchObj.name}</span>}
               </span>
               <button 
                 onClick={() => {
                   dispatch(setSelectedGstin('ALL'));
                   dispatch(setSelectedBranch('ALL'));
                 }}
-                className="text-[11px] text-slate-400 hover:text-rose-600 px-1.5 py-1 rounded hover:bg-slate-100 transition-colors"
+                className="text-[11px] text-slate-400 hover:text-rose-600 px-1 py-0.5 rounded hover:bg-slate-100 transition-colors cursor-pointer"
                 title="Reset to All GSTINs"
               >
                 Clear
               </button>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* 3. Search, Date Range Filter & Utility Control Bar */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs no-print">
+        {/* Left: Search & Filters */}
+        <div className="flex flex-wrap items-center gap-2.5 flex-1">
+          {/* Search Input */}
+          <div className="relative flex-1 min-w-[220px] max-w-md">
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search invoice number, customer/vendor..." 
+              className="w-full h-10 pl-9 pr-8 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+            />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+
+          {/* Billing Period Date-Range Picker */}
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 h-10 select-none">
+            <Calendar size={14} className="text-indigo-600 shrink-0" />
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 shrink-0">Period:</span>
+            <input 
+              type="date" 
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="bg-transparent text-xs font-semibold text-slate-700 outline-none border-none py-0.5 px-1 focus:ring-0 w-28 cursor-pointer"
+              title="Start Date"
+            />
+            <span className="text-slate-300 text-xs font-bold shrink-0">to</span>
+            <input 
+              type="date" 
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="bg-transparent text-xs font-semibold text-slate-700 outline-none border-none py-0.5 px-1 focus:ring-0 w-28 cursor-pointer"
+              title="End Date"
+            />
+            {(startDate || endDate) && (
+              <button 
+                onClick={() => { setStartDate(''); setEndDate(''); }}
+                className="p-1 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 transition-colors shrink-0 cursor-pointer"
+                title="Clear date filter"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+
+          {/* Filters Toggle Button */}
+          <button 
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)} 
+            className={`h-10 px-3.5 border rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+              showAdvancedFilters || startDate || endDate || minAmount || maxAmount || filterDocType !== 'ALL'
+                ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-xs' 
+                : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+            }`}
+          >
+            <Filter size={14} className={showAdvancedFilters ? 'text-indigo-600' : 'text-slate-500'} />
+            <span>Filters</span>
+            {(minAmount || maxAmount || filterDocType !== 'ALL') && (
+              <span className="w-2 h-2 bg-indigo-600 rounded-full" />
+            )}
+          </button>
+
+          {/* Data Quality Overlay Button */}
+          <button 
+            onClick={() => setIsDataQualityOverlayOpen(true)}
+            className="h-10 px-3.5 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-800 border border-slate-200 hover:border-emerald-200 rounded-xl text-xs font-bold text-slate-700 transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+          >
+            <ShieldCheck size={14} className="text-emerald-600" />
+            <span>Data Quality</span>
+          </button>
+        </div>
+
+        {/* Right: Tools & Utilities */}
+        <div className="flex flex-wrap items-center gap-2 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
+          {/* Bulk E-Invoice / E-Way Bill */}
+          {eligibleForEInvoice.length > 0 && (
+            <button 
+              onClick={handleBulkGenerate} 
+              disabled={isBulkGenerating} 
+              className="h-10 px-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+            >
+              {isBulkGenerating ? <Loader2 size={14} className="animate-spin" /> : <Layers size={14} />}
+              <span>E-Invoice ({eligibleForEInvoice.length})</span>
+            </button>
+          )}
+
+          {eligibleForEWayBill.length > 0 && (
+            <button 
+              onClick={handleBulkEWayBill} 
+              disabled={isBulkEwbGenerating} 
+              className="h-10 px-3.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+            >
+              {isBulkEwbGenerating ? <Loader2 size={14} className="animate-spin" /> : <Truck size={14} />}
+              <span>E-Way Bill ({eligibleForEWayBill.length})</span>
+            </button>
+          )}
+
+          {activeCategory === 'PURCHASE' && (
+            <button 
+              onClick={handleRunAutoItcTagging} 
+              disabled={isAutoTaggingRunning}
+              className="h-10 px-3.5 bg-teal-50 border border-teal-200 hover:bg-teal-100 text-teal-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+              title="Execute statutory rules engine to classify ITC Eligibility across all purchase invoices"
+            >
+              {isAutoTaggingRunning ? <Loader2 size={14} className="animate-spin text-teal-600" /> : <ShieldCheck size={14} className="text-teal-600" />}
+              <span>Auto-Tag ITC</span>
+            </button>
+          )}
+
+          <button 
+            onClick={() => setIsAutoCatRulesOpen(true)} 
+            className="h-10 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 transition-all flex items-center gap-1.5 cursor-pointer"
+            title="Automation & auto-categorization rules"
+          >
+            <Zap size={14} className="text-amber-500" />
+            <span>Rules</span>
+          </button>
+
+          <button 
+            onClick={() => setIsCurrencyConverterOpen(true)} 
+            className="h-10 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 transition-all flex items-center gap-1.5 cursor-pointer"
+            title="Multi-currency exchange rates and conversion"
+          >
+            <Globe size={14} className="text-blue-500" />
+            <span>FX</span>
+          </button>
+
+          <button 
+            onClick={() => setIsVendorUploadModalOpen(true)}
+            className="h-10 px-3 bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 rounded-xl text-xs font-bold text-slate-700 hover:text-indigo-700 transition-all flex items-center gap-1.5 cursor-pointer"
+            title="Open Vendor document submission portal"
+          >
+            <Share2 size={14} className="text-indigo-600" />
+            <span>Vendor Portal</span>
+          </button>
+
+          <button 
+            onClick={() => setIsExportModalOpen(true)} 
+            className="h-10 px-3.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 transition-all flex items-center gap-1.5 cursor-pointer"
+            title="Export CSV or JSON data"
+          >
+            <Download size={14} className="text-blue-600" />
+            <span>Export</span>
+          </button>
+
+          <button 
+            onClick={() => handlePrintDocument('REGISTER')} 
+            className="h-10 px-3.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+            title="Print GST Invoices Register Summary Report"
+          >
+            <Printer size={14} className="text-slate-600" />
+            <span>Print</span>
+          </button>
         </div>
       </div>
 
@@ -2202,48 +2568,135 @@ const Invoices: React.FC = () => {
         )}
 
         {/* Pagination Controls */}
-        {totalPages > 1 && (
-          <div className="px-6 py-4 border-t border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-4 no-print">
-            <div className="text-xs text-slate-500 font-medium">
-              Showing <span className="font-semibold text-slate-800">{Math.min(totalItems, (currentPage - 1) * itemsPerPage + 1)}</span> to{' '}
-              <span className="font-semibold text-slate-800">{Math.min(totalItems, currentPage * itemsPerPage)}</span> of{' '}
-              <span className="font-semibold text-slate-800">{totalItems}</span> invoices
-            </div>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                className="p-2 border border-slate-200 rounded-lg bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:pointer-events-none transition-all active:scale-95"
-                title="Previous Page"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                <button
-                  key={page}
-                  type="button"
-                  onClick={() => setCurrentPage(page)}
-                  className={`w-9 h-9 flex items-center justify-center text-xs font-semibold rounded-lg border transition-all active:scale-95 ${
-                    currentPage === page
-                      ? 'bg-blue-600 border-blue-600 text-white shadow-sm shadow-blue-600/10'
-                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'
-                  }`}
+        {totalItems > 0 && (
+          <div className="px-6 py-4 border-t border-slate-200 bg-slate-50/80 flex flex-col xl:flex-row items-center justify-between gap-4 no-print select-none">
+            {/* Left: Range and Summary & Rows per page */}
+            <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600 font-medium">
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500 font-semibold">Rows per page:</span>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    setItemsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="h-8 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer shadow-xs"
                 >
-                  {page}
-                </button>
-              ))}
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
 
-              <button
-                type="button"
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-                className="p-2 border border-slate-200 rounded-lg bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:pointer-events-none transition-all active:scale-95"
-                title="Next Page"
-              >
-                <ChevronRight size={16} />
-              </button>
+              <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+
+              <div>
+                Showing <span className="font-bold text-slate-900">{Math.min(totalItems, (currentPage - 1) * itemsPerPage + 1)}</span> to{' '}
+                <span className="font-bold text-slate-900">{Math.min(totalItems, currentPage * itemsPerPage)}</span> of{' '}
+                <span className="font-bold text-slate-900">{totalItems}</span> documents
+              </div>
+            </div>
+
+            {/* Center / Right: Pagination Buttons & Quick Jump */}
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Pagination Controls */}
+              <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-xs">
+                {/* First Page */}
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                  className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:pointer-events-none transition-colors cursor-pointer"
+                  title="First Page"
+                >
+                  <ChevronsLeft size={16} />
+                </button>
+
+                {/* Previous Page */}
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:pointer-events-none transition-colors cursor-pointer"
+                  title="Previous Page"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+
+                {/* Page Number Pills */}
+                {paginationRange.map((page, idx) => {
+                  if (page === '...') {
+                    return (
+                      <span key={`ellipsis-${idx}`} className="w-8 h-8 flex items-center justify-center text-xs text-slate-400 font-bold select-none">
+                        ...
+                      </span>
+                    );
+                  }
+                  const pageNum = page as number;
+                  const isActive = currentPage === pageNum;
+                  return (
+                    <button
+                      key={pageNum}
+                      type="button"
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`w-8 h-8 flex items-center justify-center text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                        isActive
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+
+                {/* Next Page */}
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:pointer-events-none transition-colors cursor-pointer"
+                  title="Next Page"
+                >
+                  <ChevronRight size={16} />
+                </button>
+
+                {/* Last Page */}
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                  className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:pointer-events-none transition-colors cursor-pointer"
+                  title="Last Page"
+                >
+                  <ChevronsRight size={16} />
+                </button>
+              </div>
+
+              {/* Jump to Page Form (if more than 3 pages) */}
+              {totalPages > 3 && (
+                <form onSubmit={handleJumpToPage} className="flex items-center gap-1.5 text-xs text-slate-600 font-medium">
+                  <span className="hidden sm:inline text-[11px] text-slate-400 font-bold uppercase">Go to</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={totalPages}
+                    value={jumpPageInput}
+                    onChange={(e) => setJumpPageInput(e.target.value)}
+                    placeholder={currentPage.toString()}
+                    className="w-12 h-8 px-1.5 text-center bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-xs"
+                  />
+                  <span className="text-slate-400 text-xs font-semibold">/ {totalPages}</span>
+                  <button
+                    type="submit"
+                    className="h-8 px-2.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-xs"
+                  >
+                    Go
+                  </button>
+                </form>
+              )}
             </div>
           </div>
         )}
@@ -2931,47 +3384,48 @@ const Invoices: React.FC = () => {
                       </div>
                       <div className="flex items-center gap-2">
                         <button 
-                            className="p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors flex items-center gap-2 text-sm font-medium" 
-                            onClick={() => window.print()}
+                            className="p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors flex items-center gap-2 text-sm font-medium cursor-pointer" 
+                            onClick={() => handlePrintDocument('INVOICE')}
+                            title="Print Tax Invoice Document"
                         >
                             <Printer size={16}/> <span className="hidden sm:inline">Print</span>
                         </button>
                         <button 
                             onClick={() => setShowTemplateSelector(true)}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/10"
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-500/10 cursor-pointer"
                         >
                             <Palette size={16} /> <span className="hidden sm:inline">Professional Style</span>
                         </button>
                         <button 
                             onClick={() => setShowQrModal(true)}
-                            className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-200 transition-all border border-slate-200"
+                            className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-200 transition-all border border-slate-200 cursor-pointer"
                         >
                             <Share2 size={16} /> <span className="hidden sm:inline">Client QR Portal</span>
                         </button>
                         <button 
                             onClick={() => setShowVersionHistory(!showVersionHistory)}
-                            className={`p-2 rounded-full transition-colors flex items-center gap-2 text-sm font-medium ${showVersionHistory ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-100'}`}
+                            className={`p-2 rounded-full transition-colors flex items-center gap-2 text-sm font-medium cursor-pointer ${showVersionHistory ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-100'}`}
                         >
                             <History size={16}/> <span className="hidden sm:inline">History</span>
                         </button>
                         <button 
                             onClick={() => setWhatsAppModalInvoice(selectedInvoice)}
-                            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-emerald-500/10"
+                            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-emerald-500/10 cursor-pointer"
                             title="Send WhatsApp Invoice Notification"
                         >
                             <MessageSquare size={16} /> <span className="hidden sm:inline">WhatsApp Notify</span>
                         </button>
                         <button 
                             onClick={() => setIsEvidenceTrailOpen(true)}
-                            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-slate-800/10"
+                            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-slate-800/10 cursor-pointer"
                         >
                             <ShieldCheck size={16}/> <span className="hidden sm:inline">Evidence Trail</span>
                         </button>
-                        <button className="p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors flex items-center gap-2 text-sm font-medium">
+                        <button className="p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors flex items-center gap-2 text-sm font-medium cursor-pointer">
                             <Download size={16}/> <span className="hidden sm:inline">Download</span>
                         </button>
                         <div className="h-6 w-px bg-slate-200 mx-1"></div>
-                        <button onClick={() => setSelectedInvoice(null)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
+                        <button onClick={() => setSelectedInvoice(null)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors cursor-pointer">
                             <X size={20} />
                         </button>
                       </div>
@@ -2979,7 +3433,7 @@ const Invoices: React.FC = () => {
                   
                   <div className="flex-1 flex overflow-hidden">
                     <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/50 custom-scrollbar">
-                        <div className="bg-white border border-slate-200 rounded-xl p-6 md:p-8 shadow-sm print:shadow-none print:border-none relative overflow-hidden">
+                        <div id="printable-invoice-document" className="bg-white border border-slate-200 rounded-xl p-6 md:p-8 shadow-sm print:shadow-none print:border-none relative overflow-hidden">
                           
                           {/* Decorative Background */}
                           <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-slate-50 to-blue-50 rounded-bl-full -mr-32 -mt-32 opacity-50 pointer-events-none"></div>
@@ -3443,25 +3897,83 @@ const Invoices: React.FC = () => {
         invoice={selectedInvoice}
       />
 
-      {/* Floating 'Quick Scan' Camera Button */}
-      <div className="fixed bottom-6 right-6 z-40 no-print">
-        <button
-          id="floating-quick-scan-btn"
-          type="button"
-          onClick={() => setIsCameraScannerOpen(true)}
-          className="group relative px-5 py-3.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-full font-bold text-sm shadow-2xl shadow-indigo-600/40 border border-white/20 flex items-center gap-3 transition-all hover:scale-105 active:scale-95 cursor-pointer backdrop-blur-md"
-          title="Open camera interface to snap & instant process tax invoices"
-        >
-          <div className="relative flex items-center justify-center">
-            <Camera size={20} className="text-white group-hover:rotate-12 transition-transform" />
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-400 rounded-full animate-ping" />
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-400 rounded-full" />
+      {/* Printable Invoices Register Table & Summary Report (Included in DOM for print generation) */}
+      <div id="printable-invoices-register" className="hidden print:block p-8 bg-white text-slate-900">
+        <div className="border-b-2 border-slate-900 pb-4 mb-6">
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-2xl font-black uppercase tracking-wider text-slate-900">
+                GST Tax Document Register
+              </h1>
+              <p className="text-sm font-semibold text-slate-600 mt-1">
+                Category: <span className="font-bold text-slate-900">{activeCategory === 'SALES' ? 'Sales Invoices' : activeCategory === 'PURCHASE' ? 'Purchase Invoices' : 'Credit & Debit Notes'}</span>
+                {selectedGstin !== 'ALL' && <span> | GSTIN Scope: {selectedGstin}</span>}
+              </p>
+            </div>
+            <div className="text-right text-xs text-slate-500 font-medium">
+              <p>Generated on: {new Date().toLocaleString()}</p>
+              <p>Total Records: {registerTotals.count}</p>
+            </div>
           </div>
-          <span className="tracking-wide font-black">Quick Scan</span>
-          <span className="px-2 py-0.5 rounded-full bg-white/20 text-white text-[10px] uppercase font-black tracking-widest border border-white/30 backdrop-blur-sm">
-            AI Vault
-          </span>
-        </button>
+
+          {/* Metric Summary Ribbon for Print */}
+          <div className="grid grid-cols-4 gap-4 mt-6 pt-4 border-t border-slate-200 text-xs">
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="text-slate-500 font-bold uppercase text-[10px]">Total Invoices</div>
+              <div className="text-base font-black text-slate-900 mt-0.5">{registerTotals.count}</div>
+            </div>
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="text-slate-500 font-bold uppercase text-[10px]">Total Taxable Value</div>
+              <div className="text-base font-black text-slate-900 mt-0.5">₹{registerTotals.taxableValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+            </div>
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="text-slate-500 font-bold uppercase text-[10px]">Total Tax (GST)</div>
+              <div className="text-base font-black text-slate-900 mt-0.5">₹{registerTotals.taxValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+            </div>
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="text-slate-500 font-bold uppercase text-[10px]">Gross Invoice Value</div>
+              <div className="text-base font-black text-slate-900 mt-0.5">₹{registerTotals.grossValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+            </div>
+          </div>
+        </div>
+
+        <table className="w-full text-xs text-left border-collapse border border-slate-300">
+          <thead>
+            <tr className="bg-slate-100 text-slate-700 font-bold uppercase text-[10px] tracking-wider border-b border-slate-300">
+              <th className="p-2 border border-slate-300 text-center w-8">#</th>
+              <th className="p-2 border border-slate-300">Date</th>
+              <th className="p-2 border border-slate-300">Invoice No</th>
+              <th className="p-2 border border-slate-300">Type</th>
+              <th className="p-2 border border-slate-300">Customer / Vendor</th>
+              <th className="p-2 border border-slate-300">GSTIN</th>
+              <th className="p-2 border border-slate-300 text-right">Taxable (₹)</th>
+              <th className="p-2 border border-slate-300 text-right">Tax (₹)</th>
+              <th className="p-2 border border-slate-300 text-right">Total (₹)</th>
+              <th className="p-2 border border-slate-300 text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(filteredInvoices || []).map((inv, idx) => (
+              <tr key={inv.id || idx} className="border-b border-slate-200 hover:bg-slate-50">
+                <td className="p-2 border border-slate-300 text-center font-mono text-[10px] text-slate-500">{idx + 1}</td>
+                <td className="p-2 border border-slate-300 whitespace-nowrap">{inv.date}</td>
+                <td className="p-2 border border-slate-300 font-mono font-bold whitespace-nowrap">{inv.invoiceNumber}</td>
+                <td className="p-2 border border-slate-300 whitespace-nowrap">{inv.type || 'B2B'}</td>
+                <td className="p-2 border border-slate-300 font-medium">{inv.partyName}</td>
+                <td className="p-2 border border-slate-300 font-mono text-[10px]">{inv.gstin || '-'}</td>
+                <td className="p-2 border border-slate-300 text-right font-mono font-medium">₹{(inv.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                <td className="p-2 border border-slate-300 text-right font-mono font-medium">₹{(inv.taxAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                <td className="p-2 border border-slate-300 text-right font-mono font-bold text-slate-900">₹{((inv.amount || 0) + (inv.taxAmount || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                <td className="p-2 border border-slate-300 text-center font-bold text-[10px] uppercase">{inv.status}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <div className="mt-6 pt-4 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-500">
+          <div>GST Compliance & Statutory Invoicing Management Engine</div>
+          <div>Page 1 of 1 • Internal Audit Copy</div>
+        </div>
       </div>
 
       {/* Document Camera Scanner Modal Interface */}

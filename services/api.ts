@@ -1,4 +1,4 @@
-import { Invoice, InvoiceItem, InvoiceVersion, ReconItem, User, UserRole, Tenant, ReconStatus, FilingRecord, ReturnFormType, EWayBill, ComplianceAlert, VendorRisk, NotificationSettings, LiabilityReportData, ItcReportData, BranchReportData, AuditLogData, TaxComputationSummary, AiRiskRecord, InvoiceReminder, AnomalyRecord, SavedReport, ImportLog, VendorActivityLog, AutomationRule, AutomationRuleCondition, AutomationRuleAction, FilingVersion, FilingDataSummary, InvoiceApprovalStatus, InvoiceApprovalWorkflow, ApprovalStageAction, ExpenseCategorySuggestion, WhatsAppMessageLog, GstDueDateItem, WhatsAppAutoReminderConfig, SendWhatsAppNotificationParams, SendWhatsAppResponse, AutomatedGstRemindersSummary } from '../types';
+import { Invoice, InvoiceItem, InvoiceVersion, ReconItem, User, UserRole, Tenant, ReconStatus, FilingRecord, ReturnFormType, EWayBill, ComplianceAlert, VendorRisk, NotificationSettings, LiabilityReportData, ItcReportData, BranchReportData, AuditLogData, TaxComputationSummary, AiRiskRecord, InvoiceReminder, AnomalyRecord, SavedReport, ImportLog, VendorActivityLog, AutomationRule, AutomationRuleCondition, AutomationRuleAction, FilingVersion, FilingDataSummary, InvoiceApprovalStatus, InvoiceApprovalWorkflow, ApprovalStageAction, ExpenseCategorySuggestion, WhatsAppMessageLog, GstDueDateItem, WhatsAppAutoReminderConfig, SendWhatsAppNotificationParams, SendWhatsAppResponse, AutomatedGstRemindersSummary, WhatsAppGatewayStatus, FilingStatusWhatsAppParams, WhatsAppClientItem } from '../types';
 import { ParsedCsvRow } from '../utils/csvImportValidator';
 import { ITCTaggingService } from './gstEngine/itcTaggingService';
 import { GSTR2BMatchingService, GSTR2BPortalRecord, GSTR2BMatchingConfig, GSTR2BMatchResultItem, GSTR2BMatchingSummary, DEFAULT_GSTR2B_MATCHING_CONFIG } from './gstEngine/gstr2bMatchingService';
@@ -61,12 +61,16 @@ const save = (key: string, val: any) => {
 
 // --- DATA SEEDING & INITIALIZATION ---
 
+import { ENTERPRISE_GROUP_TENANTS } from '../src/fixtures/enterpriseTenants';
+
 // Mock Tenants
-const initialTenants: Tenant[] = [
-  { id: 't1', name: 'Acme Corp', gstin: '27ABCDE1234F1Z5', address: '123 Business Park, Mumbai, MH', stateCode: '27' }, 
-  { id: 't2', name: 'Globex Inc', gstin: '04XYZZZ9876L1Z1', address: 'Sector 17, Chandigarh', stateCode: '04' }, 
-];
-let MOCK_TENANTS: Tenant[] = load(STORAGE_KEYS.TENANTS, initialTenants);
+const initialTenants: Tenant[] = ENTERPRISE_GROUP_TENANTS;
+let loadedTenants: Tenant[] = load(STORAGE_KEYS.TENANTS, initialTenants);
+if (!loadedTenants || loadedTenants.length < ENTERPRISE_GROUP_TENANTS.length) {
+  loadedTenants = ENTERPRISE_GROUP_TENANTS;
+  save(STORAGE_KEYS.TENANTS, loadedTenants);
+}
+let MOCK_TENANTS: Tenant[] = loadedTenants;
 
 // Mock Users
 const initialUsers: User[] = [
@@ -84,7 +88,7 @@ const initialUsers: User[] = [
     email: 'auditor@taxflow.com',
     role: UserRole.AUDITOR,
     currentTenantId: 't1',
-    availableTenants: [MOCK_TENANTS[0]],
+    availableTenants: [...MOCK_TENANTS],
   },
   {
     id: 'u3',
@@ -92,7 +96,7 @@ const initialUsers: User[] = [
     email: 'accountant@taxflow.com',
     role: UserRole.ACCOUNTANT,
     currentTenantId: 't1',
-    availableTenants: [MOCK_TENANTS[0]],
+    availableTenants: [...MOCK_TENANTS],
   },
   {
     id: 'u4',
@@ -100,10 +104,15 @@ const initialUsers: User[] = [
     email: 'viewer@taxflow.com',
     role: UserRole.VIEWER,
     currentTenantId: 't1',
-    availableTenants: [MOCK_TENANTS[0]],
+    availableTenants: [...MOCK_TENANTS],
   }
 ];
-let MOCK_USERS: User[] = load(STORAGE_KEYS.USERS, initialUsers);
+let loadedUsers: User[] = load(STORAGE_KEYS.USERS, initialUsers);
+if (loadedUsers && loadedUsers.length > 0 && loadedUsers[0].availableTenants?.length < ENTERPRISE_GROUP_TENANTS.length) {
+  loadedUsers = loadedUsers.map(u => ({ ...u, availableTenants: [...MOCK_TENANTS] }));
+  save(STORAGE_KEYS.USERS, loadedUsers);
+}
+let MOCK_USERS: User[] = loadedUsers;
 
 // Mock Branches
 const initialBranches: BranchReportData[] = [
@@ -2123,7 +2132,22 @@ export const fetchDashboardStats = async (tenantId: string = 't1', timeRange: st
     });
 
     const isSpecificGstin = gstin && gstin !== 'ALL' && gstin !== 'ALL_GSTINS';
-    const baseMult = (tenantId === 't2' ? 1.6 : 1.0) * (isSpecificGstin ? 0.35 : 1.0);
+    const tenantMultiplierMap: Record<string, number> = {
+      't1': 1.0,
+      't2': 0.65,
+      't3': 0.45,
+      't4': 0.50,
+      't5': 0.32,
+      't6': 0.28,
+      't7': 0.22,
+      't8': 0.18,
+      't9': 0.25,
+      't10': 0.40,
+      't11': 0.15,
+      't12': 0.18
+    };
+    const entityMult = tenantMultiplierMap[tenantId] || 0.3;
+    const baseMult = entityMult * (isSpecificGstin ? 0.35 : 1.0);
     
     // Scale according to active time range: Weekly (~0.24x), Monthly (1.0x), Quarterly (~2.85x)
     const rangeMult = timeRange === 'WEEKLY' ? 0.24 : (timeRange === 'QUARTERLY' ? 2.85 : 1.0);
@@ -2144,9 +2168,24 @@ export const fetchDashboardStats = async (tenantId: string = 't1', timeRange: st
 export const fetchDashboardAnalytics = async (tenantId: string = 't1', timeRange: string = 'MONTHLY', gstin?: string, branchId?: string) => { 
     await delay(300); 
     const isSpecificGstin = gstin && gstin !== 'ALL' && gstin !== 'ALL_GSTINS';
-    const isT2 = tenantId === 't2';
+    const tenantMultiplierMap: Record<string, number> = {
+      't1': 1.0,
+      't2': 0.65,
+      't3': 0.45,
+      't4': 0.50,
+      't5': 0.32,
+      't6': 0.28,
+      't7': 0.22,
+      't8': 0.18,
+      't9': 0.25,
+      't10': 0.40,
+      't11': 0.15,
+      't12': 0.18
+    };
+    const entityMult = tenantMultiplierMap[tenantId] || 0.3;
     const scalingFactor = isSpecificGstin ? 0.35 : 1.0;
-    const baseMult = (isT2 ? 1.6 : 1.0) * scalingFactor;
+    const baseMult = entityMult * scalingFactor;
+    const isT2 = tenantId === 't2';
 
     let periods: string[] = [];
     let trendData: Array<{ sales: number; purchase: number; liability: number; itc: number; outputLiability: number; mismatches: number; accuracy: number }>;
@@ -2691,6 +2730,111 @@ export const updateWhatsAppAutoReminderConfig = async (config: Partial<WhatsAppA
     } catch (err) {
         console.error('Error updating WhatsApp reminder config:', err);
         throw err;
+    }
+};
+
+export const fetchWhatsAppGatewayStatus = async (): Promise<WhatsAppGatewayStatus> => {
+    try {
+        const res = await fetch('/api/v1/whatsapp/status');
+        if (!res.ok) {
+            return {
+                configured: false,
+                accountSid: null,
+                fromNumber: 'whatsapp:+14155238886',
+                mode: 'SANDBOX_SIMULATION',
+                totalLoggedMessages: 0
+            };
+        }
+        return await res.json();
+    } catch (err) {
+        console.error('Error fetching WhatsApp gateway status:', err);
+        return {
+            configured: false,
+            accountSid: null,
+            fromNumber: 'whatsapp:+14155238886',
+            mode: 'SANDBOX_SIMULATION',
+            totalLoggedMessages: 0
+        };
+    }
+};
+
+export const testTwilioWhatsAppConnection = async (phone: string = "+919876543210"): Promise<SendWhatsAppResponse> => {
+    try {
+        const res = await fetch('/api/v1/whatsapp/test-connection', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            throw new Error(data.error || 'Failed to ping WhatsApp gateway');
+        }
+        await logAuditAction(`Tested Twilio WhatsApp Connection`, 'SYSTEM', `Target Phone: ${phone}, Result: ${data.status}`);
+        return data;
+    } catch (err: any) {
+        console.error('Error testing WhatsApp connection:', err);
+        throw err;
+    }
+};
+
+export const sendFilingStatusWhatsAppNotification = async (params: FilingStatusWhatsAppParams): Promise<SendWhatsAppResponse> => {
+    try {
+        const res = await fetch('/api/v1/whatsapp/send-filing-status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(params)
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            throw new Error(data.error || 'Failed to send WhatsApp filing status notification');
+        }
+        await logAuditAction(`Sent WhatsApp Filing Status for ${params.returnType} (${params.period})`, 'FILING', `Recipient: ${params.recipientPhone}, Status: ${params.status}`);
+        return data;
+    } catch (err: any) {
+        console.error('Error in sendFilingStatusWhatsAppNotification:', err);
+        throw err;
+    }
+};
+
+export const sendReconciliationMismatchWhatsAppAlert = async (params: {
+    recipientPhone: string;
+    recipientName?: string;
+    recipientGstin?: string;
+    period?: string;
+    mismatchCount?: number;
+    taxImpact?: number;
+    matchScore?: number;
+    topReason?: string;
+    invoiceNumber?: string;
+    vendorName?: string;
+    customNotes?: string;
+}): Promise<SendWhatsAppResponse> => {
+    try {
+        const res = await fetch('/api/v1/whatsapp/send-reconciliation-mismatch-alert', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(params)
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            throw new Error(data.error || 'Failed to send reconciliation mismatch WhatsApp alert');
+        }
+        await logAuditAction(`Sent WhatsApp Reconciliation Mismatch Alert`, 'COMPLIANCE', `Recipient: ${params.recipientPhone}, Mismatches: ${params.mismatchCount || 1}`);
+        return data;
+    } catch (err: any) {
+        console.error('Error in sendReconciliationMismatchWhatsAppAlert:', err);
+        throw err;
+    }
+};
+
+export const fetchWhatsAppClients = async (): Promise<WhatsAppClientItem[]> => {
+    try {
+        const res = await fetch('/api/v1/whatsapp/clients');
+        if (!res.ok) return [];
+        return await res.json();
+    } catch (err) {
+        console.error('Error fetching WhatsApp clients:', err);
+        return [];
     }
 };
 

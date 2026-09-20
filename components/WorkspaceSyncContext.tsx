@@ -44,14 +44,16 @@ export const useWorkspaceSync = () => {
 
 interface WorkspaceSyncProviderProps {
   children: React.ReactNode;
-  currentPath: string;
-  onNavigate: (path: string) => void;
+  currentPath?: string;
+  onNavigate?: (path: string) => void;
 }
 
 export const WorkspaceSyncProvider: React.FC<WorkspaceSyncProviderProps> = ({
   children,
-  currentPath,
-  onNavigate
+  currentPath = typeof window !== 'undefined' ? window.location.pathname : '/',
+  onNavigate = (path: string) => {
+    if (typeof window !== 'undefined') window.history.pushState(null, '', path);
+  }
 }) => {
   const user = useSelector((state: RootState) => state.auth.user);
   const currentTenantId = user?.currentTenantId || 't1';
@@ -72,6 +74,11 @@ export const WorkspaceSyncProvider: React.FC<WorkspaceSyncProviderProps> = ({
 
   // Active Tab Sync
   const [currentActiveTab, setCurrentActiveTab] = useState(currentPath);
+  const currentActiveTabRef = useRef(currentActiveTab);
+  currentActiveTabRef.current = currentActiveTab;
+
+  const formInputsRef = useRef(formInputs);
+  formInputsRef.current = formInputs;
 
   // Track path updates
   useEffect(() => {
@@ -80,7 +87,7 @@ export const WorkspaceSyncProvider: React.FC<WorkspaceSyncProviderProps> = ({
 
   // Read logs from server
   const fetchSyncLogs = useCallback(async () => {
-    if (!user) return;
+    if (!userId) return;
     try {
       const res = await fetch(`/api/workspace/sync/logs?userId=${userId}&tenantId=${currentTenantId}`);
       if (res.ok) {
@@ -90,7 +97,7 @@ export const WorkspaceSyncProvider: React.FC<WorkspaceSyncProviderProps> = ({
     } catch (err) {
       console.warn('Workspace sync logs fetch bypassed temporarily', err);
     }
-  }, [user, userId, currentTenantId]);
+  }, [userId, currentTenantId]);
 
   // Trigger server cloud sync
   const triggerManualSync = useCallback(async () => {
@@ -98,8 +105,8 @@ export const WorkspaceSyncProvider: React.FC<WorkspaceSyncProviderProps> = ({
     setIsSyncing(true);
 
     const payload = {
-      activeTab: currentActiveTab,
-      formInputs,
+      activeTab: currentActiveTabRef.current,
+      formInputs: formInputsRef.current,
       timestamp: new Date().toISOString()
     };
 
@@ -139,7 +146,7 @@ export const WorkspaceSyncProvider: React.FC<WorkspaceSyncProviderProps> = ({
     } finally {
       setIsSyncing(false);
     }
-  }, [userId, currentTenantId, formInputs, currentActiveTab, syncEnabled, fetchSyncLogs]);
+  }, [userId, currentTenantId, syncEnabled, fetchSyncLogs]);
 
   // Register draft fields dynamically
   const registerDraftField = useCallback((formKey: string, data: any) => {
@@ -166,9 +173,9 @@ export const WorkspaceSyncProvider: React.FC<WorkspaceSyncProviderProps> = ({
 
   // Check for crash recovery / cloud state on startup or login
   useEffect(() => {
-    const checkRecoveryState = async () => {
-      if (!user) return;
+    if (!userId) return;
 
+    const checkRecoveryState = async () => {
       try {
         const res = await fetch(`/api/workspace/sync?userId=${userId}&tenantId=${currentTenantId}`);
         if (res.ok) {
@@ -199,18 +206,18 @@ export const WorkspaceSyncProvider: React.FC<WorkspaceSyncProviderProps> = ({
 
     checkRecoveryState();
     fetchSyncLogs();
-  }, [user, userId, currentTenantId, fetchSyncLogs]);
+  }, [userId, currentTenantId, fetchSyncLogs]);
 
   // Periodic Auto-Sync Timer
   useEffect(() => {
-    if (!syncEnabled || !user) return;
+    if (!syncEnabled || !userId) return;
 
     const intervalId = setInterval(() => {
       triggerManualSync();
     }, syncInterval);
 
     return () => clearInterval(intervalId);
-  }, [syncEnabled, syncInterval, triggerManualSync, user]);
+  }, [syncEnabled, syncInterval, triggerManualSync, userId]);
 
   const onAcceptRecovery = useCallback(() => {
     if (pendingCloudStateRef.current) {

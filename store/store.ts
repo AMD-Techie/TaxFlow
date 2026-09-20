@@ -1,15 +1,45 @@
 import { configureStore, createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { User, Tenant, GstinRegistrationItem, BranchDetailsItem } from '../types';
+import { User, Tenant, GstinRegistrationItem, BranchDetailsItem, UserRole } from '../types';
+import { ENTERPRISE_GROUP_TENANTS, ENTERPRISE_GSTINS_BY_TENANT, ENTERPRISE_BRANCHES_BY_TENANT } from '../src/fixtures/enterpriseTenants';
 
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
 }
 
-const initialAuthState: AuthState = {
-  user: null,
-  isAuthenticated: false,
+const defaultEnterpriseUser: User = {
+  id: 'u1',
+  name: 'Vikram Malhotra (CFO / Admin)',
+  email: 'admin@taxflow.com',
+  role: UserRole.ADMIN,
+  primaryDepartment: 'TAX',
+  currentTenantId: 't1',
+  availableTenants: ENTERPRISE_GROUP_TENANTS,
 };
+
+const getInitialAuthState = (): AuthState => {
+  try {
+    const savedUser = localStorage.getItem('TF_AUTH_USER');
+    if (savedUser) {
+      const parsed = JSON.parse(savedUser);
+      if (parsed && parsed.id) {
+        return {
+          user: parsed,
+          isAuthenticated: true,
+        };
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load saved auth user:', e);
+  }
+
+  return {
+    user: defaultEnterpriseUser,
+    isAuthenticated: true,
+  };
+};
+
+const initialAuthState: AuthState = getInitialAuthState();
 
 const authSlice = createSlice({
   name: 'auth',
@@ -18,10 +48,50 @@ const authSlice = createSlice({
     login: (state, action: PayloadAction<User>) => {
       state.user = action.payload;
       state.isAuthenticated = true;
+      try {
+        localStorage.setItem('TF_AUTH_USER', JSON.stringify(action.payload));
+      } catch (e) {}
     },
     logout: (state) => {
       state.user = null;
       state.isAuthenticated = false;
+      try {
+        localStorage.removeItem('TF_AUTH_USER');
+      } catch (e) {}
+    },
+    switchRole: (state, action: PayloadAction<UserRole>) => {
+      if (state.user) {
+        state.user.role = action.payload;
+        if (action.payload === UserRole.ADMIN || action.payload === UserRole.SUPER_ADMIN) {
+          state.user.name = 'Vikram Malhotra (CFO / Admin)';
+          state.user.email = 'admin@taxflow.com';
+        } else if (action.payload === UserRole.FINANCE_MANAGER) {
+          state.user.name = 'Anish Kapoor (Finance Manager)';
+          state.user.email = 'finance.manager@taxflow.com';
+        } else if (action.payload === UserRole.ACCOUNTANT) {
+          state.user.name = 'Rohan Verma (Senior Accountant)';
+          state.user.email = 'accountant@taxflow.com';
+        } else if (action.payload === UserRole.AUDITOR) {
+          state.user.name = 'Priya Nair (Tax Auditor)';
+          state.user.email = 'auditor@taxflow.com';
+        } else if (action.payload === UserRole.VIEWER) {
+          state.user.name = 'Kavita Sen (Executive Viewer)';
+          state.user.email = 'viewer@taxflow.com';
+        }
+        try {
+          localStorage.setItem('TF_AUTH_USER', JSON.stringify(state.user));
+        } catch (e) {}
+      }
+    },
+    switchUserPersona: (state, action: PayloadAction<{ name: string; email: string; role: UserRole }>) => {
+      if (state.user) {
+        state.user.role = action.payload.role;
+        state.user.name = action.payload.name;
+        state.user.email = action.payload.email;
+        try {
+          localStorage.setItem('TF_AUTH_USER', JSON.stringify(state.user));
+        } catch (e) {}
+      }
     },
     switchTenant: (state, action: PayloadAction<string>) => {
       if (state.user) {
@@ -29,17 +99,26 @@ const authSlice = createSlice({
         const hasAccess = state.user.availableTenants.some(t => t.id === action.payload);
         if (hasAccess) {
           state.user.currentTenantId = action.payload;
+          try {
+            localStorage.setItem('TF_AUTH_USER', JSON.stringify(state.user));
+          } catch (e) {}
         }
       }
     },
     updateProfile: (state, action: PayloadAction<Partial<User>>) => {
       if (state.user) {
         state.user = { ...state.user, ...action.payload };
+        try {
+          localStorage.setItem('TF_AUTH_USER', JSON.stringify(state.user));
+        } catch (e) {}
       }
     },
     addTenant: (state, action: PayloadAction<Tenant>) => {
       if (state.user) {
         state.user.availableTenants.push(action.payload);
+        try {
+          localStorage.setItem('TF_AUTH_USER', JSON.stringify(state.user));
+        } catch (e) {}
       }
     }
   },
@@ -54,202 +133,8 @@ interface OrgState {
   branchesByTenant: Record<string, BranchDetailsItem[]>;
 }
 
-const defaultGstins: Record<string, GstinRegistrationItem[]> = {
-  't1': [
-    {
-      id: 'g1',
-      gstin: '27ABCDE1234F1Z5',
-      stateCode: '27',
-      stateName: 'Maharashtra',
-      registrationType: 'REGULAR',
-      registrationDate: '2018-07-01',
-      status: 'ACTIVE',
-      filingFrequency: 'MONTHLY',
-      einvoicingStatus: 'ENABLED',
-      ewaybillStatus: 'ENABLED',
-      isPrimary: true
-    },
-    {
-      id: 'g2',
-      gstin: '07ABCDE1234F1Z9',
-      stateCode: '07',
-      stateName: 'Delhi',
-      registrationType: 'REGULAR',
-      registrationDate: '2019-10-15',
-      status: 'ACTIVE',
-      filingFrequency: 'MONTHLY',
-      einvoicingStatus: 'ENABLED',
-      ewaybillStatus: 'ENABLED',
-      isPrimary: false
-    },
-    {
-      id: 'g3',
-      gstin: '29ABCDE1234F3Z2',
-      stateCode: '29',
-      stateName: 'Karnataka',
-      registrationType: 'SEZ_UNIT',
-      registrationDate: '2021-03-20',
-      status: 'ACTIVE',
-      filingFrequency: 'MONTHLY',
-      einvoicingStatus: 'ENABLED',
-      ewaybillStatus: 'ENABLED',
-      isPrimary: false
-    },
-    {
-      id: 'g4',
-      gstin: '33ABCDE1234F4Z1',
-      stateCode: '33',
-      stateName: 'Tamil Nadu',
-      registrationType: 'REGULAR',
-      registrationDate: '2022-01-10',
-      status: 'ACTIVE',
-      filingFrequency: 'MONTHLY',
-      einvoicingStatus: 'ENABLED',
-      ewaybillStatus: 'ENABLED',
-      isPrimary: false
-    }
-  ],
-  't2': [
-    {
-      id: 'g2-1',
-      gstin: '04XYZZZ9876L1Z1',
-      stateCode: '04',
-      stateName: 'Chandigarh',
-      registrationType: 'REGULAR',
-      registrationDate: '2019-04-01',
-      status: 'ACTIVE',
-      filingFrequency: 'MONTHLY',
-      einvoicingStatus: 'ENABLED',
-      ewaybillStatus: 'ENABLED',
-      isPrimary: true
-    },
-    {
-      id: 'g2-2',
-      gstin: '04XYZZZ9876L2Z2',
-      stateCode: '06',
-      stateName: 'Haryana',
-      registrationType: 'REGULAR',
-      registrationDate: '2020-08-15',
-      status: 'ACTIVE',
-      filingFrequency: 'MONTHLY',
-      einvoicingStatus: 'ENABLED',
-      ewaybillStatus: 'ENABLED',
-      isPrimary: false
-    }
-  ]
-};
-
-const defaultBranches: Record<string, BranchDetailsItem[]> = {
-  't1': [
-    {
-      id: 'b1',
-      name: 'Mumbai HQ Office',
-      code: 'MH-HQ-01',
-      type: 'HEAD_OFFICE',
-      address: '101 MIDC Andheri East, Mumbai, MH',
-      stateCode: '27',
-      stateName: 'Maharashtra',
-      gstin: '27ABCDE1234F1Z5',
-      contactPerson: 'Rajesh Sharma',
-      contactEmail: 'rajesh.sharma@acmetech.com',
-      contactPhone: '+91 98200 11223',
-      status: 'ACTIVE',
-      annualTurnoverContributionPct: 55
-    },
-    {
-      id: 'b2',
-      name: 'Pune Plant',
-      code: 'MH-PU-02',
-      type: 'FACTORY',
-      address: 'Plot 44, MIDC Bhosari, Pune, MH',
-      stateCode: '27',
-      stateName: 'Maharashtra',
-      gstin: '27ABCDE1234F1Z5',
-      contactPerson: 'Suresh Patil',
-      contactEmail: 'suresh.patil@acmetech.com',
-      contactPhone: '+91 98220 44556',
-      status: 'ACTIVE',
-      annualTurnoverContributionPct: 15
-    },
-    {
-      id: 'b3',
-      name: 'Delhi Regional Hub',
-      code: 'DL-RO-03',
-      type: 'REGIONAL_OFFICE',
-      address: 'Connaught Place, New Delhi, DL',
-      stateCode: '07',
-      stateName: 'Delhi',
-      gstin: '07ABCDE1234F1Z9',
-      contactPerson: 'Priya Verma',
-      contactEmail: 'priya.verma@acmetech.com',
-      contactPhone: '+91 98110 44556',
-      status: 'ACTIVE',
-      annualTurnoverContributionPct: 15
-    },
-    {
-      id: 'b6',
-      name: 'Bengaluru Tech Center (SEZ)',
-      code: 'KA-SEZ-04',
-      type: 'SEZ_UNIT',
-      address: 'Electronic City Phase 1, Bengaluru, KA',
-      stateCode: '29',
-      stateName: 'Karnataka',
-      gstin: '29ABCDE1234F3Z2',
-      contactPerson: 'Arun Kumar',
-      contactEmail: 'arun.kumar@acmetech.com',
-      contactPhone: '+91 98450 77889',
-      status: 'ACTIVE',
-      annualTurnoverContributionPct: 10
-    },
-    {
-      id: 'b7',
-      name: 'Chennai Logistics Unit',
-      code: 'TN-LOG-05',
-      type: 'WAREHOUSE',
-      address: 'Guindy Industrial Estate, Chennai, TN',
-      stateCode: '33',
-      stateName: 'Tamil Nadu',
-      gstin: '33ABCDE1234F4Z1',
-      contactPerson: 'Karthik Raja',
-      contactEmail: 'karthik.raja@acmetech.com',
-      contactPhone: '+91 98400 33445',
-      status: 'ACTIVE',
-      annualTurnoverContributionPct: 5
-    }
-  ],
-  't2': [
-    {
-      id: 'b4',
-      name: 'Chandigarh Main HQ',
-      code: 'CH-HQ-01',
-      type: 'HEAD_OFFICE',
-      address: 'Sector 17, Chandigarh',
-      stateCode: '04',
-      stateName: 'Chandigarh',
-      gstin: '04XYZZZ9876L1Z1',
-      contactPerson: 'Vikram Singh',
-      contactEmail: 'vikram.singh@globex.com',
-      contactPhone: '+91 98760 12345',
-      status: 'ACTIVE',
-      annualTurnoverContributionPct: 75
-    },
-    {
-      id: 'b5',
-      name: 'Ambala Depot',
-      code: 'HR-DP-02',
-      type: 'WAREHOUSE',
-      address: 'GT Road, Ambala, Haryana',
-      stateCode: '06',
-      stateName: 'Haryana',
-      gstin: '04XYZZZ9876L2Z2',
-      contactPerson: 'Harpreet Kaur',
-      contactEmail: 'harpreet.kaur@globex.com',
-      contactPhone: '+91 98720 67890',
-      status: 'ACTIVE',
-      annualTurnoverContributionPct: 25
-    }
-  ]
-};
+const defaultGstins: Record<string, GstinRegistrationItem[]> = ENTERPRISE_GSTINS_BY_TENANT;
+const defaultBranches: Record<string, BranchDetailsItem[]> = ENTERPRISE_BRANCHES_BY_TENANT;
 
 const getInitialOrgState = (): OrgState => {
   try {
@@ -258,11 +143,14 @@ const getInitialOrgState = (): OrgState => {
     const savedSelectedGstin = localStorage.getItem('TF_SELECTED_GSTIN') || 'ALL';
     const savedSelectedBranch = localStorage.getItem('TF_SELECTED_BRANCH') || 'ALL';
 
+    const parsedGstins = savedGstins ? JSON.parse(savedGstins) : {};
+    const parsedBranches = savedBranches ? JSON.parse(savedBranches) : {};
+
     return {
       selectedGstin: savedSelectedGstin,
       selectedBranchId: savedSelectedBranch,
-      gstinsByTenant: savedGstins ? JSON.parse(savedGstins) : defaultGstins,
-      branchesByTenant: savedBranches ? JSON.parse(savedBranches) : defaultBranches
+      gstinsByTenant: { ...defaultGstins, ...parsedGstins },
+      branchesByTenant: { ...defaultBranches, ...parsedBranches }
     };
   } catch (e) {
     return {
@@ -356,7 +244,7 @@ const orgSlice = createSlice({
   }
 });
 
-export const { login, logout, switchTenant, updateProfile, addTenant } = authSlice.actions;
+export const { login, logout, switchRole, switchUserPersona, switchTenant, updateProfile, addTenant } = authSlice.actions;
 export const { 
   setSelectedGstin, 
   setSelectedBranch, 

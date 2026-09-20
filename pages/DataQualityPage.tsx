@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   ShieldCheck, 
   AlertTriangle, 
@@ -21,7 +21,10 @@ import {
   RefreshCw,
   Clock,
   ExternalLink,
+  ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Terminal,
   Upload,
   UserCheck
@@ -314,6 +317,150 @@ const INITIAL_DEMO_FEED: ErpInvoiceFeed[] = [
     scrubbed: false,
     qualityScore: 100,
     alerts: []
+  },
+  {
+    id: 'erp-8',
+    sourceFeed: 'ORACLE-CLOUD',
+    invoiceNumber: 'INV-2026-8812',
+    invoiceDate: '2026-08-23',
+    supplierName: 'Kaveri Microcircuits Pvt Ltd',
+    supplierGstin: '33KAVMS2233M1Z8',
+    supplierPan: 'KAVMS9999M', // PAN Mismatch! In GSTIN: KAVMS2233M
+    supplierPinCode: '600028', // TN (matches state 33)
+    buyerName: 'Global TechSolutions Corp',
+    buyerGstin: '07XYZ9876A1Z9',
+    buyerPan: 'XYZ9876A',
+    buyerPinCode: '110001',
+    placeOfSupply: '07',
+    taxableValue: 360000.00,
+    igstRecorded: 64800.00,
+    cgstRecorded: 0,
+    sgstRecorded: 0,
+    taxRate: 18,
+    totalAmountRecorded: 424800.00,
+    scrubbed: false,
+    qualityScore: 100,
+    alerts: []
+  },
+  {
+    id: 'erp-9',
+    sourceFeed: 'SAP-ERP',
+    invoiceNumber: 'SAP-BLR-55410',
+    invoiceDate: '2026-08-24',
+    supplierName: 'Indo-German Industrial Valves',
+    supplierGstin: '29INVAL4433E1Z3',
+    supplierPan: 'INVAL4433E',
+    supplierPinCode: '110020', // Delhi PIN, but GSTIN is '29' (Karnataka)!
+    buyerName: 'Global TechSolutions Corp',
+    buyerGstin: '07XYZ9876A1Z9',
+    buyerPan: 'XYZ9876A',
+    buyerPinCode: '110001',
+    placeOfSupply: '07',
+    taxableValue: 195000.00,
+    igstRecorded: 35100.00,
+    cgstRecorded: 0,
+    sgstRecorded: 0,
+    taxRate: 18,
+    totalAmountRecorded: 230100.00,
+    scrubbed: false,
+    qualityScore: 100,
+    alerts: []
+  },
+  {
+    id: 'erp-10-ora',
+    sourceFeed: 'ORACLE-CLOUD',
+    invoiceNumber: 'TAX-CON-9021', // Cross-feed duplicate
+    invoiceDate: '2026-08-25',
+    supplierName: 'Pinnacle Cloud Infrastructure',
+    supplierGstin: '27PINCL7788P1Z6',
+    supplierPan: 'PINCL7788P',
+    supplierPinCode: '400076', // MH
+    buyerName: 'Global TechSolutions Corp',
+    buyerGstin: '07XYZ9876A1Z9',
+    buyerPan: 'XYZ9876A',
+    buyerPinCode: '110001',
+    placeOfSupply: '07',
+    taxableValue: 540000.00,
+    igstRecorded: 97200.00,
+    cgstRecorded: 0,
+    sgstRecorded: 0,
+    taxRate: 18,
+    totalAmountRecorded: 637200.00,
+    scrubbed: false,
+    qualityScore: 100,
+    alerts: []
+  },
+  {
+    id: 'erp-10-tly',
+    sourceFeed: 'TALLY-SYNC',
+    invoiceNumber: 'TAX-CON-9021', // Duplicate from Tally sync
+    invoiceDate: '2026-08-25',
+    supplierName: 'Pinnacle Cloud Infrastructure',
+    supplierGstin: '27PINCL7788P1Z6',
+    supplierPan: 'PINCL7788P',
+    supplierPinCode: '400076',
+    buyerName: 'Global TechSolutions Corp',
+    buyerGstin: '07XYZ9876A1Z9',
+    buyerPan: 'XYZ9876A',
+    buyerPinCode: '110001',
+    placeOfSupply: '07',
+    taxableValue: 540000.00,
+    igstRecorded: 97200.00,
+    cgstRecorded: 0,
+    sgstRecorded: 0,
+    taxRate: 18,
+    totalAmountRecorded: 637200.00,
+    scrubbed: false,
+    qualityScore: 100,
+    alerts: []
+  },
+  {
+    id: 'erp-11',
+    sourceFeed: 'SALESFORCE',
+    invoiceNumber: 'SF-IND-3392',
+    invoiceDate: '2026-08-26',
+    supplierName: 'Matrix Automation Labs',
+    supplierGstin: '06MATRX6655L1Z2',
+    supplierPan: 'MATRX6655L',
+    supplierPinCode: '122001', // Haryana (matches 06)
+    buyerName: 'Global TechSolutions Corp',
+    buyerGstin: '07XYZ9876A1Z9',
+    buyerPan: 'XYZ9876A',
+    buyerPinCode: '110001',
+    placeOfSupply: '07',
+    taxableValue: 88755.25, // Unrounded decimals
+    igstRecorded: 15975.94,
+    cgstRecorded: 0,
+    sgstRecorded: 0,
+    taxRate: 18,
+    totalAmountRecorded: 104731.19,
+    scrubbed: false,
+    qualityScore: 100,
+    alerts: []
+  },
+  {
+    id: 'erp-12',
+    sourceFeed: 'SAP-ERP',
+    invoiceNumber: 'INV-CLEAN-1002',
+    invoiceDate: '2026-08-27',
+    supplierName: 'Standard Clean Supplies Corp',
+    supplierGstin: '27STNDS1234Q1Z9',
+    supplierPan: 'STNDS1234Q',
+    supplierPinCode: '400001',
+    buyerName: 'Global TechSolutions Corp',
+    buyerGstin: '07XYZ9876A1Z9',
+    buyerPan: 'XYZ9876A',
+    buyerPinCode: '110001',
+    placeOfSupply: '07',
+    taxableValue: 45000.00,
+    igstRecorded: 8100.00,
+    cgstRecorded: 0,
+    sgstRecorded: 0,
+    taxRate: 18,
+    totalAmountRecorded: 53100.00,
+    scrubbed: false,
+    qualityScore: 100,
+    alerts: []
   }
 ];
 
@@ -372,6 +519,16 @@ export const DataQualityPage: React.FC = () => {
   const [customJson, setCustomJson] = useState<string>('');
   const [showJsonInput, setShowJsonInput] = useState<boolean>(false);
   const [dragActive, setDragActive] = useState<boolean>(false);
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(5);
+  const [jumpPageInput, setJumpPageInput] = useState<string>('');
+
+  // Reset page on search query, filter tab, or page size change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, activeTab, pageSize]);
 
   // File Input Ref
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -930,21 +1087,53 @@ export const DataQualityPage: React.FC = () => {
     });
   }, [feeds, searchQuery, activeTab]);
 
+  // Pagination Calculations
+  const totalItems = filteredFeeds.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIndex = (safeCurrentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+
+  const paginatedFeeds = useMemo(() => {
+    return filteredFeeds.slice(startIndex, endIndex);
+  }, [filteredFeeds, startIndex, endIndex]);
+
+  const handleJumpSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const pageNum = parseInt(jumpPageInput, 10);
+    if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages) {
+      setCurrentPage(pageNum);
+      setJumpPageInput('');
+    }
+  };
+
+  const getPageNumbers = () => {
+    if (totalPages <= 5) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    if (safeCurrentPage <= 3) {
+      return [1, 2, 3, 4, '...', totalPages];
+    }
+    if (safeCurrentPage >= totalPages - 2) {
+      return [1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+    }
+    return [1, '...', safeCurrentPage - 1, safeCurrentPage, safeCurrentPage + 1, '...', totalPages];
+  };
+
   return (
     <div className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500" id="data-quality-dashboard">
       
       {/* Dynamic Banner Header */}
-      <div className="bg-slate-900 rounded-3xl border border-slate-800 shadow-xl p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
-        <div className="absolute inset-0 bg-radial-at-t from-blue-900/10 via-transparent to-transparent pointer-events-none" />
+      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
         <div className="space-y-2.5 relative z-10 max-w-2xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/10 border border-blue-400/25 rounded-full text-blue-400 text-[10px] font-mono uppercase tracking-wider">
-            <Sparkles size={11} className="text-blue-400" />
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200/80 rounded-full text-blue-700 text-[10px] font-mono font-bold uppercase tracking-wider">
+            <Sparkles size={11} className="text-blue-600" />
             <span>AI-Driven GST Scrubbing Engine</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-none">
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-none">
             Corporate Ingestion Pipeline Scrubber
           </h1>
-          <p className="text-slate-400 text-sm leading-relaxed">
+          <p className="text-slate-600 text-sm leading-relaxed">
             Automatic integrity checks for multi-channel ERP data feeds. Scrutinizes PAN alignments, maps ZIP codes directly to regulatory tax states, isolates duplicate invoice references, and corrects floating-point tax rounding errors prior to statutory GSTR-1 & 3B transmission.
           </p>
         </div>
@@ -952,7 +1141,7 @@ export const DataQualityPage: React.FC = () => {
         <div className="flex items-center gap-3 shrink-0 relative z-10 w-full sm:w-auto justify-end">
           <button 
             onClick={resetEngine}
-            className="px-4 py-2.5 bg-slate-800 hover:bg-slate-750 text-slate-300 font-bold text-xs rounded-xl border border-slate-700/80 transition-colors flex items-center gap-2"
+            className="px-4 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-colors flex items-center gap-2 cursor-pointer shadow-xs"
           >
             <RotateCcw size={14} />
             <span>Reset Feed</span>
@@ -961,7 +1150,7 @@ export const DataQualityPage: React.FC = () => {
           <button 
             onClick={runScrubPipeline}
             disabled={isScrubbing}
-            className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs rounded-xl shadow-lg transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl shadow-sm hover:shadow transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             <Play size={14} className={isScrubbing ? "animate-ping" : ""} />
             <span>{isScrubbing ? "Scrubbing Feed..." : "Execute Pipeline"}</span>
@@ -1124,18 +1313,18 @@ export const DataQualityPage: React.FC = () => {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="bg-slate-950 rounded-2xl border border-slate-800 shadow-xl p-5 md:p-6"
+            className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 md:p-6"
           >
-            <div className="flex items-center justify-between border-b border-slate-850 pb-3 mb-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
               <div className="flex items-center gap-2">
-                <Database className="text-blue-500 animate-pulse" size={18} />
-                <span className="text-xs font-black uppercase text-white tracking-widest font-mono">
+                <Database className="text-blue-600 animate-pulse" size={18} />
+                <span className="text-xs font-black uppercase text-slate-900 tracking-widest font-mono">
                   Live Scrubbing Pipeline Execution Tracker
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
-                <span className="text-[10px] text-slate-400 font-mono font-bold uppercase">Processing...</span>
+                <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping" />
+                <span className="text-[10px] text-slate-500 font-mono font-bold uppercase">Processing...</span>
               </div>
             </div>
 
@@ -1155,23 +1344,23 @@ export const DataQualityPage: React.FC = () => {
                     key={stage.step}
                     className={`p-3.5 rounded-xl border transition-all flex flex-col gap-1.5 ${
                       isActive 
-                        ? 'bg-blue-950/40 border-blue-500/50 shadow-sm shadow-blue-500/10 scale-102' 
+                        ? 'bg-blue-50 border-blue-400 text-blue-900 shadow-xs scale-102 font-bold' 
                         : isCompleted 
-                          ? 'bg-emerald-950/25 border-emerald-500/20 text-emerald-300' 
-                          : 'bg-slate-900/30 border-slate-800/40 text-slate-500'
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+                          : 'bg-slate-50 border-slate-200 text-slate-500'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-mono font-extrabold text-slate-400">STAGE 0{stage.step}</span>
+                      <span className="text-[10px] font-mono font-extrabold text-slate-500">STAGE 0{stage.step}</span>
                       {isCompleted ? (
-                        <CheckCircle size={14} className="text-emerald-400" />
+                        <CheckCircle size={14} className="text-emerald-600" />
                       ) : isActive ? (
-                        <RefreshCw size={12} className="text-blue-400 animate-spin" />
+                        <RefreshCw size={12} className="text-blue-600 animate-spin" />
                       ) : (
-                        <Clock size={12} className="text-slate-600" />
+                        <Clock size={12} className="text-slate-400" />
                       )}
                     </div>
-                    <span className={`text-xs font-extrabold ${isActive ? 'text-white' : ''}`}>{stage.label}</span>
+                    <span className={`text-xs font-extrabold ${isActive ? 'text-blue-950' : ''}`}>{stage.label}</span>
                   </div>
                 );
               })}
@@ -1393,7 +1582,7 @@ export const DataQualityPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-150">
-                {filteredFeeds.map((feed) => {
+                {paginatedFeeds.map((feed) => {
                   const verified = feed.scrubbed && feed.alerts.length === 0;
                   const hasResolvedAll = feed.scrubbed && feed.alerts.every(a => a.resolved);
                   
@@ -1572,21 +1761,145 @@ export const DataQualityPage: React.FC = () => {
           )}
         </div>
 
+        {/* Pagination Controls Bar */}
+        {filteredFeeds.length > 0 && (
+          <div className="px-6 py-4 border-t border-slate-200 bg-slate-50/60 flex flex-col sm:flex-row items-center justify-between gap-4">
+            {/* Range and Rows Per Page selector */}
+            <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 font-medium">
+              <div>
+                Showing <span className="font-bold text-slate-800">{startIndex + 1}</span> to{' '}
+                <span className="font-bold text-slate-800">{endIndex}</span> of{' '}
+                <span className="font-bold text-slate-800">{totalItems}</span> records
+              </div>
+
+              <div className="flex items-center gap-2 pl-3 border-l border-slate-200">
+                <span className="text-slate-400 font-medium">Rows per page:</span>
+                <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-0.5 shadow-2xs">
+                  {[5, 10, 20, 50].map((size) => (
+                    <button
+                      key={size}
+                      onClick={() => {
+                        setPageSize(size);
+                        setCurrentPage(1);
+                      }}
+                      className={`px-2 py-1 text-xs font-bold rounded-md transition-all ${
+                        pageSize === size
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                      }`}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Page Navigation & Direct Jump */}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage(1)}
+                  disabled={safeCurrentPage <= 1}
+                  className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  title="First Page"
+                >
+                  <ChevronsLeft size={16} />
+                </button>
+                <button
+                  onClick={() => setCurrentPage(safeCurrentPage - 1)}
+                  disabled={safeCurrentPage <= 1}
+                  className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  title="Previous Page"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+
+                <div className="flex items-center gap-1 px-1">
+                  {getPageNumbers().map((pageNum, idx) => {
+                    if (pageNum === '...') {
+                      return (
+                        <span key={`ellipsis-${idx}`} className="px-1 text-slate-400 font-bold text-xs select-none">
+                          ...
+                        </span>
+                      );
+                    }
+                    const isCurrent = safeCurrentPage === pageNum;
+                    return (
+                      <button
+                        key={`page-${pageNum}`}
+                        onClick={() => setCurrentPage(Number(pageNum))}
+                        className={`min-w-[28px] h-7 px-1.5 rounded-lg text-xs font-bold transition-all ${
+                          isCurrent
+                            ? 'bg-blue-600 text-white shadow-2xs'
+                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  onClick={() => setCurrentPage(safeCurrentPage + 1)}
+                  disabled={safeCurrentPage >= totalPages}
+                  className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  title="Next Page"
+                >
+                  <ChevronRight size={16} />
+                </button>
+                <button
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={safeCurrentPage >= totalPages}
+                  className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  title="Last Page"
+                >
+                  <ChevronsRight size={16} />
+                </button>
+              </div>
+
+              {/* Direct Page Jump Input */}
+              {totalPages > 1 && (
+                <form onSubmit={handleJumpSubmit} className="flex items-center gap-1.5 pl-2 border-l border-slate-200">
+                  <span className="text-xs text-slate-400 font-medium">Go to:</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={totalPages}
+                    placeholder={`${safeCurrentPage}`}
+                    value={jumpPageInput}
+                    onChange={(e) => setJumpPageInput(e.target.value)}
+                    className="w-12 h-7 px-1.5 text-center bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-800 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 shadow-2xs"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!jumpPageInput.trim()}
+                    className="h-7 px-2.5 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:hover:bg-slate-100 text-slate-700 font-semibold rounded-lg text-xs transition-colors"
+                  >
+                    Go
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
+        )}
+
       </div>
 
       {/* Scrub History & Compliance Integrity Ledger Logs */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-md text-white">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-5">
+      <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-xs">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-5">
           <div className="space-y-1">
-            <h3 className="text-base font-bold flex items-center gap-2">
-              <Database size={18} className="text-blue-400" />
+            <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+              <Database size={18} className="text-blue-600" />
               Scrubber Compliance Audit Logs
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500">
               Tamper-proof history tracing pipeline execution events, mismatch volumes, and auto-correct percentages.
             </p>
           </div>
-          <span className="text-xs font-mono font-bold uppercase text-blue-400 bg-blue-500/10 border border-blue-400/25 px-2.5 py-1 rounded-full">
+          <span className="text-xs font-mono font-bold uppercase text-blue-700 bg-blue-50 border border-blue-200/80 px-2.5 py-1 rounded-full">
             256-Bit SHA Integrity Signed
           </span>
         </div>
@@ -1595,14 +1908,14 @@ export const DataQualityPage: React.FC = () => {
           {scrubHistory.map((history) => (
             <div 
               key={history.id}
-              className="bg-slate-950/55 border border-slate-800/80 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 hover:border-slate-700/60 transition-colors"
+              className="bg-slate-50/70 border border-slate-200/70 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 hover:bg-slate-50 hover:border-slate-300/80 transition-colors"
             >
               <div className="flex items-center gap-3.5 w-full sm:w-auto">
-                <div className="p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-slate-400 shrink-0">
+                <div className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-500 shrink-0 shadow-2xs">
                   <Clock size={16} />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-200">Ingestion Stream Sync #{history.id}</h4>
+                  <h4 className="text-xs font-bold text-slate-900">Ingestion Stream Sync #{history.id}</h4>
                   <p className="text-[10px] text-slate-500 font-mono mt-0.5">Executed: {history.timestamp}</p>
                 </div>
               </div>
@@ -1610,20 +1923,20 @@ export const DataQualityPage: React.FC = () => {
               <div className="flex items-center gap-6 sm:gap-12 w-full sm:w-auto justify-between sm:justify-end text-xs font-mono">
                 <div className="space-y-0.5">
                   <span className="text-[10px] text-slate-500 font-bold uppercase block">Total Scanned</span>
-                  <span className="text-white font-extrabold">{history.totalInvoices} Invoices</span>
+                  <span className="text-slate-900 font-extrabold">{history.totalInvoices} Invoices</span>
                 </div>
                 
                 <div className="space-y-0.5">
                   <span className="text-[10px] text-slate-500 font-bold uppercase block">Discrepancies</span>
-                  <span className="text-rose-400 font-extrabold">{history.errorsDetected} Detected</span>
+                  <span className="text-rose-600 font-extrabold">{history.errorsDetected} Detected</span>
                 </div>
 
                 <div className="space-y-0.5">
                   <span className="text-[10px] text-slate-500 font-bold uppercase block">Quality Index</span>
                   <div className="flex items-center gap-1.5">
                     <span className="text-slate-400 line-through">{history.avgScoreBefore}%</span>
-                    <ArrowRight size={10} className="text-slate-500" />
-                    <span className="text-emerald-400 font-extrabold">{history.avgScoreAfter}%</span>
+                    <ArrowRight size={10} className="text-slate-400" />
+                    <span className="text-emerald-600 font-extrabold">{history.avgScoreAfter}%</span>
                   </div>
                 </div>
               </div>

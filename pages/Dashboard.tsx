@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, switchTenant, setSelectedGstin, setSelectedBranch } from '../store/store';
@@ -9,13 +9,14 @@ import {
 } from 'recharts';
 import { 
   Calendar as CalendarIcon, Bell, Shield, Globe, Loader2, User, Camera, Sparkles, CheckCircle2,
-  Building2, Layers, ArrowRight, ArrowLeft
+  Building2, Layers, ArrowRight, ArrowLeft, FileDown, Download
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { createInvoice } from '../services/api';
 import DocumentCameraScanner, { ExtractedInvoiceData } from '../components/DocumentCameraScanner';
-import { UserRole } from '../types';
+import { UserRole, Tenant } from '../types';
 import { motion } from 'framer-motion';
+import { MonthlyGstrReportModal } from '../components/MonthlyGstrReportModal';
 import AdminFinancialView from '../components/dashboard/AdminFinancialView';
 import AuditorMetricsView from '../components/dashboard/AuditorMetricsView';
 import GenericOverview from '../components/dashboard/GenericOverview';
@@ -39,6 +40,8 @@ import { GstPolicyUpdatesWidget } from '../components/dashboard/GstPolicyUpdates
 import { SubsidiaryPerformanceMatrix } from '../components/dashboard/SubsidiaryPerformanceMatrix';
 import { IndividualCompanyHeader } from '../components/dashboard/IndividualCompanyHeader';
 import { ComplianceDeadlinesTimeline } from '../components/dashboard/ComplianceDeadlinesTimeline';
+import { ReconciledVsUnreconciledChart } from '../components/dashboard/ReconciledVsUnreconciledChart';
+import { ENTERPRISE_GROUP_TENANTS } from '../src/fixtures/enterpriseTenants';
 
 const Dashboard: React.FC = () => {
   const user = useSelector((state: RootState) => state.auth.user);
@@ -48,15 +51,12 @@ const Dashboard: React.FC = () => {
   const branchesByTenant = useSelector((state: RootState) => state.org.branchesByTenant);
 
   const tenantId = user?.currentTenantId || 't1';
-  const availableTenants = (user?.availableTenants && user.availableTenants.length > 0)
+  const availableTenants: Tenant[] = (user?.availableTenants && user.availableTenants.length >= ENTERPRISE_GROUP_TENANTS.length)
     ? user.availableTenants
-    : [
-        { id: 't1', name: 'Acme Corp', gstin: '27ABCDE1234F1Z5', address: '123 Business Park, Mumbai, MH', stateCode: '27' }, 
-        { id: 't2', name: 'Globex Inc', gstin: '04XYZZZ9876L1Z1', address: 'Sector 17, Chandigarh', stateCode: '04' }, 
-      ];
+    : ENTERPRISE_GROUP_TENANTS;
   
   // RBAC: Can see sensitive financial actions
-  const canAct = user?.role === UserRole.ADMIN || user?.role === UserRole.ACCOUNTANT;
+  const canAct = user?.role === UserRole.SUPER_ADMIN || user?.role === UserRole.ADMIN || user?.role === UserRole.FINANCE_MANAGER || user?.role === UserRole.ACCOUNTANT;
 
   const dispatch = useDispatch();
   const queryClient = useQueryClient();
@@ -70,6 +70,7 @@ const Dashboard: React.FC = () => {
   const [selectedEntityId, setSelectedEntityId] = useState<string>('AGGREGATE');
   const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
   const [dashboardScanToast, setDashboardScanToast] = useState<string | null>(null);
+  const [isReportModalOpen, setIsReportModalOpen] = useState<boolean>(false);
 
   const handleOpenCompanyDashboard = (targetTenantId: string) => {
     setSelectedEntityId(targetTenantId);
@@ -155,9 +156,11 @@ const Dashboard: React.FC = () => {
     }
   }, [tenantId, dashboardViewMode]);
 
+  const tenantIdsKey = useMemo(() => availableTenants.map(t => t.id).join(','), [availableTenants]);
+
   // Query Stats for ALL available entities (aware of time range, selected GSTIN, and Branch)
   const allTenantsStatsQuery = useQuery({
-    queryKey: ['allTenantsStats', availableTenants.map(t => t.id), timeRange, selectedGstin, selectedBranchId],
+    queryKey: ['allTenantsStats', tenantIdsKey, timeRange, selectedGstin, selectedBranchId],
     queryFn: async () => {
       const entries = await Promise.all(
         availableTenants.map(async (tenant) => {
@@ -175,7 +178,7 @@ const Dashboard: React.FC = () => {
 
   // Query Analytics for ALL available entities (aware of selected GSTIN and Branch)
   const allTenantsAnalyticsQuery = useQuery({
-    queryKey: ['allTenantsAnalytics', availableTenants.map(t => t.id), timeRange, selectedGstin, selectedBranchId],
+    queryKey: ['allTenantsAnalytics', tenantIdsKey, timeRange, selectedGstin, selectedBranchId],
     queryFn: async () => {
       const entries = await Promise.all(
         availableTenants.map(async (tenant) => {
@@ -193,7 +196,7 @@ const Dashboard: React.FC = () => {
 
   // Query Filing History for ALL available entities
   const allTenantsFilingsQuery = useQuery({
-    queryKey: ['allTenantsFilings', availableTenants.map(t => t.id)],
+    queryKey: ['allTenantsFilings', tenantIdsKey],
     queryFn: async () => {
       const entries = await Promise.all(
         availableTenants.map(async (tenant) => {
@@ -352,7 +355,8 @@ const Dashboard: React.FC = () => {
     activeAnalytics = analyticsMap[selectedEntityId] || null;
   }
 
-  const currentCompany = availableTenants.find(t => t.id === (selectedEntityId === 'AGGREGATE' ? tenantId : selectedEntityId)) || availableTenants[0];
+  const fallbackCompany: Tenant = { id: 't1', name: 'Acme Corp', gstin: '27ABCDE1234F1Z5', stateCode: '27', address: '101, Business Park, Mumbai, Maharashtra' };
+  const currentCompany = availableTenants.find(t => t.id === (selectedEntityId === 'AGGREGATE' ? tenantId : selectedEntityId)) || availableTenants[0] || fallbackCompany;
 
   let totalGroupSales = 0;
   Object.values(statsMap).forEach((s: any) => {
@@ -362,34 +366,33 @@ const Dashboard: React.FC = () => {
   return (
     <div className="space-y-8 pb-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Enhanced Executive Welcome Banner */}
-      <div className="bg-[#0F1523] text-white p-6 lg:p-8 rounded-[1.5rem] relative overflow-hidden flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 shadow-sm border border-[#1E293B]">
-        
+      <div className="bg-white text-slate-900 p-6 lg:p-8 rounded-2xl relative overflow-hidden flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 shadow-xs border border-slate-200">
         
         <div className="flex items-center gap-5 relative z-10">
-           <div className="w-[4.5rem] h-[4.5rem] rounded-2xl bg-[#2563EB] text-white flex items-center justify-center font-bold text-2xl shadow-sm shrink-0">
-              {dashboardViewMode === 'GROUP_LEVEL' ? <Layers size={24} /> : (currentCompany.name.charAt(0) || 'U')}
+           <div className="w-16 h-16 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-bold text-2xl shadow-sm shrink-0">
+              {dashboardViewMode === 'GROUP_LEVEL' ? <Layers size={26} /> : (currentCompany.name.charAt(0) || 'U')}
            </div>
            <div>
               <div className="flex items-center gap-2 mb-1">
-                 <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
+                 <span className={`px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider border ${
                    dashboardViewMode === 'GROUP_LEVEL'
-                     ? 'bg-[#272A4B] text-[#A5B4FC] border-transparent px-3 py-1 text-[11px] font-bold rounded-md'
-                     : 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                     ? 'bg-blue-50 text-blue-700 border-blue-200/80'
+                     : 'bg-indigo-50 text-indigo-700 border-indigo-200/80'
                  }`}>
                     {dashboardViewMode === 'GROUP_LEVEL' ? 'Enterprise Group Portal' : `${currentCompany.name} Workspace`}
                  </span>
-                 <span className="text-[#94A3B8] text-xs font-medium ml-2">
+                 <span className="text-slate-500 text-xs font-medium ml-2">
                    {dashboardViewMode === 'GROUP_LEVEL' ? `${availableTenants.length} Subsidiaries Consolidated` : currentCompany.gstin}
                  </span>
               </div>
-              <h2 className="text-[32px] font-extrabold tracking-tight text-white mt-3 mb-2 leading-tight">
+              <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 mt-2 mb-1.5 leading-tight">
                 {dashboardViewMode === 'GROUP_LEVEL' ? 'Group Level Executive Dashboard' : `${currentCompany.name} Dashboard`}
               </h2>
-              <p className="text-[#94A3B8] text-sm font-medium flex items-center gap-2">
-                <CalendarIcon size={14} className="text-[#64748B]" />
+              <p className="text-slate-500 text-sm font-medium flex items-center gap-2">
+                <CalendarIcon size={14} className="text-slate-400" />
                 {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-                <span className="text-[#475569]">•</span>
-                <span className="text-[#F8FAFC]">
+                <span className="text-slate-300">•</span>
+                <span className="text-slate-700 font-semibold">
                   {dashboardViewMode === 'GROUP_LEVEL' ? 'Consolidated Multi-Entity Overview' : `Active Registered State: ${currentCompany.stateCode}`}
                 </span>
               </p>
@@ -397,18 +400,16 @@ const Dashboard: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto relative z-10">
-           
-
-           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-             <div className="flex flex-1 lg:flex-none gap-1 bg-[#1E293B] p-1.5 rounded-xl border border-[#334155]/50">
+           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+             <div className="flex flex-1 lg:flex-none gap-1 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
                 {['WEEKLY', 'MONTHLY', 'QUARTERLY'].map((range) => (
                   <button
                     key={range}
                     onClick={() => setTimeRange(range)}
-                    className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                    className={`px-4 py-2 rounded-lg text-xs font-extrabold uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${
                       timeRange === range 
-                      ? 'bg-[#2563EB] text-white shadow-sm' 
-                      : 'text-[#94A3B8] hover:text-white hover:bg-[#334155]/50'
+                      ? 'bg-blue-600 text-white shadow-xs' 
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                     }`}
                   >
                     {isFetchingFilters && timeRange === range ? (
@@ -418,30 +419,37 @@ const Dashboard: React.FC = () => {
                   </button>
                 ))}
              </div>
-             <span className="hidden">
-               <CalendarIcon size={12} className="text-blue-400" />
-               {timeRange === 'WEEKLY' && 'Trailing 6 Weeks'}
-               {timeRange === 'MONTHLY' && 'Trailing 6 Months'}
-               {timeRange === 'QUARTERLY' && 'FY 2025-26 Quarters'}
-             </span>
+
+             {/* Download Monthly GSTR Summary Report Button */}
+             <button
+               id="dashboard-download-report-btn"
+               onClick={() => setIsReportModalOpen(true)}
+               className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all shadow-xs active:scale-95 cursor-pointer whitespace-nowrap"
+               title="Download Monthly GSTR Summary Report (PDF)"
+             >
+               <FileDown size={15} />
+               <span>Download Report</span>
+             </button>
            </div>
         </div>
       </div>
 
       {/* Primary Dashboard Mode Selector: Group Level vs Individual Company */}
-      <div className="bg-[#0F1523] text-white rounded-[1.5rem] p-3 border border-[#1E293B] flex flex-col xl:flex-row xl:items-center justify-between gap-4 shadow-sm mt-4 overflow-hidden">
-        <div className="flex items-center gap-1.5 p-1.5 bg-[#1E293B] rounded-xl border border-[#334155]/50 w-full xl:w-auto overflow-x-auto shrink-0">
+      <div className="bg-white rounded-2xl p-3 border border-slate-200 flex flex-col xl:flex-row xl:items-center justify-between gap-4 shadow-xs overflow-hidden">
+        <div className="flex items-center gap-1.5 p-1.5 bg-slate-100 rounded-xl border border-slate-200 w-full xl:w-auto overflow-x-auto shrink-0">
           <button
             onClick={handleSwitchToGroupDashboard}
-            className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-black tracking-wide whitespace-nowrap transition-all ${
+            className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold tracking-wide whitespace-nowrap transition-all ${
               dashboardViewMode === 'GROUP_LEVEL'
-                ? 'bg-[#4F46E5] text-white shadow-sm'
-                : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
             }`}
           >
             <Layers size={16} />
             <span>Group Level Dashboard (Consolidated)</span>
-            <span className="text-[10px] px-2 py-0.5 bg-white/20 rounded-full font-bold ml-1">
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ml-1 ${
+              dashboardViewMode === 'GROUP_LEVEL' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+            }`}>
               {availableTenants.length} Companies
             </span>
           </button>
@@ -453,21 +461,23 @@ const Dashboard: React.FC = () => {
                 handleOpenCompanyDashboard(targetId);
               }
             }}
-            className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-black tracking-wide whitespace-nowrap transition-all ${
+            className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold tracking-wide whitespace-nowrap transition-all ${
               dashboardViewMode === 'INDIVIDUAL_COMPANY'
-                ? 'bg-[#4F46E5] text-white shadow-sm'
-                : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
             }`}
           >
             <Building2 size={16} />
             <span>Individual Company Dashboard</span>
-            <span className="text-[10px] px-2 py-0.5 bg-white/20 rounded-full font-bold ml-1">
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ml-1 ${
+              dashboardViewMode === 'INDIVIDUAL_COMPANY' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+            }`}>
               {currentCompany?.name || 'Company'}
             </span>
           </button>
         </div>
 
-        <div className="flex items-center gap-3 px-3 text-xs text-[#94A3B8] truncate">
+        <div className="flex items-center gap-3 px-3 text-xs text-slate-500 truncate">
           <span className="hidden xl:inline font-medium truncate">
             {dashboardViewMode === 'GROUP_LEVEL' 
               ? `Consolidated multi-entity intelligence across ${availableTenants.length} operating subsidiaries`
@@ -489,22 +499,22 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* Corporate System Integrity Bar */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="px-4 py-3 bg-white border border-slate-200 rounded-xl flex items-center gap-3 shadow-subtle">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="p-4 bg-white border border-slate-200 rounded-2xl flex items-center gap-3.5 shadow-xs hover:border-slate-300 transition-colors">
               <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse shrink-0"></div>
               <div>
                 <span className="text-xs font-bold text-slate-800 uppercase tracking-wide block">Group Backup Active</span>
                 <span className="text-[10px] text-slate-500 font-medium">Multi-entity snapshot: 2 mins ago</span>
               </div>
             </div>
-            <div className="px-4 py-3 bg-white border border-slate-200 rounded-xl flex items-center gap-3 shadow-subtle">
+            <div className="p-4 bg-white border border-slate-200 rounded-2xl flex items-center gap-3.5 shadow-xs hover:border-slate-300 transition-colors">
               <Shield size={18} className="text-blue-600 shrink-0" />
               <div>
                 <span className="text-xs font-bold text-slate-800 uppercase tracking-wide block">256-Bit SSL Encrypted</span>
                 <span className="text-[10px] text-slate-500 font-medium">SOC-2 Type II Consolidated Ledger</span>
               </div>
             </div>
-            <div className="px-4 py-3 bg-white border border-slate-200 rounded-xl flex items-center gap-3 shadow-subtle">
+            <div className="p-4 bg-white border border-slate-200 rounded-2xl flex items-center gap-3.5 shadow-xs hover:border-slate-300 transition-colors">
               <Globe size={18} className="text-emerald-600 shrink-0" />
               <div>
                 <span className="text-xs font-bold text-slate-800 uppercase tracking-wide block">GSTN API Connection</span>
@@ -542,6 +552,18 @@ const Dashboard: React.FC = () => {
               availableTenants={availableTenants}
               onNavigate={(path) => {
                 window.location.hash = path;
+              }}
+            />
+          </div>
+
+          {/* Visual Recharts Reconciled vs Unreconciled Invoices & Potential Tax Gap Exposure */}
+          <div className="animate-in fade-in slide-in-from-top-2 duration-500">
+            <ReconciledVsUnreconciledChart 
+              tenantId={tenantId}
+              selectedGstin="ALL"
+              period="Current Period (Q2 FY 2026-27)"
+              onNavigateToRecon={() => {
+                window.location.hash = '#/reconciliation';
               }}
             />
           </div>
@@ -635,6 +657,18 @@ const Dashboard: React.FC = () => {
               timeRange={timeRange}
               onNavigate={(path) => {
                 window.location.hash = path;
+              }}
+            />
+          </div>
+
+          {/* Visual Recharts Reconciled vs Unreconciled Invoices & Potential Tax Gap Exposure */}
+          <div className="animate-in fade-in slide-in-from-top-2 duration-500">
+            <ReconciledVsUnreconciledChart 
+              tenantId={currentCompany.id}
+              selectedGstin={selectedGstin}
+              period="Current Period (Q2 FY 2026-27)"
+              onNavigateToRecon={() => {
+                window.location.hash = '#/reconciliation';
               }}
             />
           </div>
@@ -758,6 +792,18 @@ const Dashboard: React.FC = () => {
         onClose={() => setIsCameraScannerOpen(false)}
         onInvoiceExtracted={handleDashboardInvoiceExtracted}
         defaultCategory="PURCHASE"
+      />
+
+      {/* Monthly GSTR Summary Report PDF Export Modal */}
+      <MonthlyGstrReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        currentTenant={currentCompany}
+        availableTenants={availableTenants}
+        isAggregate={dashboardViewMode === 'GROUP_LEVEL'}
+        stats={activeStats}
+        analytics={activeAnalytics}
+        defaultPeriod={timeRange === 'QUARTERLY' ? 'Q2 FY 2026-27' : 'September 2026'}
       />
 
       {/* Dashboard Scan Success Notification Toast */}

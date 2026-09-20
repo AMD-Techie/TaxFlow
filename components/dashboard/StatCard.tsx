@@ -48,17 +48,17 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, trend, isPositive, ic
   const currentStyle = colorStyles[color] || colorStyles.slate;
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow-subtle border border-slate-200/80 hover:border-slate-300 hover:shadow-card transition-all duration-200 group relative overflow-hidden flex flex-col justify-between">
+    <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-xs border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all duration-200 group relative overflow-hidden flex flex-col justify-between min-h-[176px]">
       {/* Corporate Top Accent Line */}
-      <div className={`absolute top-0 left-0 right-0 h-1 ${currentStyle.accentBorder}`}></div>
+      <div className={`absolute top-0 inset-x-0 h-1 ${currentStyle.accentBorder}`}></div>
       
       <div>
-        <div className="flex justify-between items-start mb-4 relative z-10">
-          <div className={`p-3.5 rounded-lg ${currentStyle.bgIcon} shadow-sm border border-black/5`}>
+        <div className="flex justify-between items-start mb-3 relative z-10">
+          <div className={`w-11 h-11 rounded-xl ${currentStyle.bgIcon} flex items-center justify-center shadow-xs shrink-0`}>
             {icon}
           </div>
           
-          <div className={`flex items-center gap-1.5 text-[11px] font-bold tracking-wide px-2.5 py-1 rounded-md border ${
+          <div className={`flex items-center gap-1.5 text-[11px] font-bold tracking-wide px-2.5 py-1 rounded-lg border whitespace-nowrap ${
               isPositive 
               ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
               : 'bg-rose-50 text-rose-800 border-rose-200'
@@ -70,16 +70,14 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, trend, isPositive, ic
 
         <div className="space-y-1 relative z-10">
           <h3 className="text-slate-500 text-[11px] font-bold tracking-wider uppercase">{title}</h3>
-          <div className="text-2xl lg:text-3xl font-extrabold text-slate-900 tracking-tight font-mono">{value}</div>
+          <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight font-mono">{value}</div>
         </div>
       </div>
 
-      {subtitle && (
-        <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-500 font-medium flex items-center justify-between">
-          <span>{subtitle}</span>
-          <span className="text-slate-400 font-bold">MoM</span>
-        </div>
-      )}
+      <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-500 font-medium flex items-center justify-between gap-2">
+        <span className="truncate">{subtitle || 'Consolidated metric overview'}</span>
+        <span className="text-slate-400 font-bold shrink-0 text-[10px] uppercase">MoM</span>
+      </div>
     </div>
   );
 };
