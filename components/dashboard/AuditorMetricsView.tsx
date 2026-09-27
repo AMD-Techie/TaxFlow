@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   AreaChart, Area, ComposedChart, Line, Legend
 } from 'recharts';
 import { ShieldAlert, CheckCircle2, AlertCircle, FileText } from 'lucide-react';
 import StatCard from './StatCard';
+import { GstAuditorCard, GstAuditor } from '../GstAuditor';
 
 interface AuditorMetricsViewProps {
   stats: any;
@@ -12,6 +13,7 @@ interface AuditorMetricsViewProps {
 }
 
 const AuditorMetricsView: React.FC<AuditorMetricsViewProps> = ({ analytics }) => {
+  const [isFullAuditorOpen, setIsFullAuditorOpen] = useState(false);
   // Preprocess data with safety fallbacks to guarantee robust rendering
   const trendWithRisk = (analytics?.monthlyTrend || []).map((item: any, index: number) => {
     const defaultMismatches = [5, 12, 18, 9, 15, 14];
@@ -128,6 +130,18 @@ const AuditorMetricsView: React.FC<AuditorMetricsViewProps> = ({ analytics }) =>
            </div>
         </div>
       </div>
+      {/* Automated GST Auditor Component */}
+      <div>
+        <GstAuditorCard onOpenFullAuditor={() => setIsFullAuditorOpen(true)} />
+      </div>
+
+      {isFullAuditorOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto animate-in fade-in duration-200">
+          <div className="w-full max-w-6xl max-h-[92vh] overflow-y-auto custom-scrollbar bg-slate-100 rounded-3xl p-4 sm:p-6 shadow-2xl">
+            <GstAuditor onClose={() => setIsFullAuditorOpen(false)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
